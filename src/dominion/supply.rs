@@ -21,20 +21,15 @@ const BASE_CARDS: &'static [(&'static str, &'static dyn Fn(usize) -> usize)] = &
 
 impl Supply {
     pub fn new(kingdom_card_ids: &[CardId], num_players: usize) -> Supply {
-        let insert_card = |mut card_pile: CardPiles, (card_id, card_count)| {
-            card_pile.insert(card_id, card_count);
-            card_pile
-        };
-
         Supply {
             kingdom_cards: kingdom_card_ids
                 .iter()
                 .map(|&card_id| (card_id, 10))
-                .fold(CardPiles::new(), insert_card),
+                .collect(),
             base_cards: BASE_CARDS
                 .iter()
                 .map(|&(id, f)| (id, f(num_players)))
-                .fold(CardPiles::new(), insert_card),
+                .collect(),
         }
     }
 }
