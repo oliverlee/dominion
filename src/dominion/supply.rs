@@ -20,7 +20,7 @@ const BASE_CARDS: &'static [(CardKind, &'static dyn Fn(usize) -> usize)] = &[
 ];
 
 fn kingdom_card_size(card_id: &CardKind, num_players: usize) -> usize {
-    if let Some(_) = card_id.is_victory() {
+    if let Some(_) = card_id.victory_points() {
         if num_players > 2 { 12 } else { 8 }
     } else {
         10

@@ -42,7 +42,8 @@ impl CardKind {
             CardKind::Mine => 5,
         }
     }
-    pub fn is_victory(&self) -> Option<i32> {
+
+    pub fn victory_points(&self) -> Option<i32> {
         match self {
             CardKind::Estate => Some(1),
             CardKind::Duchy => Some(3),
@@ -51,4 +52,61 @@ impl CardKind {
             _ => None,
         }
     }
+
+    // TODO: support non-standard actions
+    pub fn action(&self) -> Option<&'static CardAction> {
+        match self {
+            CardKind::Cellar => Some(&CardAction {
+                card: 0, // FIXME
+                action: 1,
+                buy: 0,
+                worth: 0,
+            }),
+            CardKind::Moat => Some(&CardAction {
+                card: 2,
+                action: 0,
+                buy: 0,
+                worth: 0,
+            }),
+            CardKind::Village => Some(&CardAction {
+                card: 1,
+                action: 2,
+                buy: 0,
+                worth: 0,
+            }),
+            CardKind::Merchant => Some(&CardAction {
+                card: 1,
+                action: 1,
+                buy: 0,
+                worth: 0, // FIXME
+            }),
+            CardKind::Smithy => Some(&CardAction {
+                card: 3,
+                action: 0,
+                buy: 0,
+                worth: 0,
+            }),
+            CardKind::Militia => Some(&CardAction {
+                card: 3,
+                action: 0,
+                buy: 0,
+                worth: 0,
+            }),
+            CardKind::Market => Some(&CardAction {
+                card: 1,
+                action: 1,
+                buy: 1,
+                worth: 1,
+            }),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct CardAction {
+    pub card: i32,
+    pub action: i32,
+    pub buy: i32,
+    pub worth: i32,
 }
