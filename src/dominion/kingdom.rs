@@ -1,5 +1,6 @@
-pub type CardId = &'static str;
-pub type Kingdom = [CardId; 5];
+use crate::dominion::CardKind;
+
+pub type Kingdom = &'static [CardKind; 10];
 
 #[derive(Debug)]
 pub enum KingdomSet {
@@ -7,14 +8,19 @@ pub enum KingdomSet {
 }
 
 impl KingdomSet {
-    pub fn cards(&self) -> &Kingdom {
+    pub fn cards(&self) -> Kingdom {
         match self {
             KingdomSet::FirstGame => &[
-                "1",
-                "2",
-                "3",
-                "4",
-                "5"
+                CardKind::Cellar,
+                CardKind::Moat,
+                CardKind::Village,
+                CardKind::Merchant,
+                CardKind::Workshop,
+                CardKind::Smithy,
+                CardKind::Remodel,
+                CardKind::Militia,
+                CardKind::Market,
+                CardKind::Mine,
             ],
         }
     }

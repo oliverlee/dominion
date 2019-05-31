@@ -1,5 +1,5 @@
-use crate::dominion::kingdom::KingdomSet;
-use crate::dominion::supply::Supply;
+use crate::dominion::KingdomSet;
+use crate::dominion::Supply;
 
 #[derive(Debug)]
 pub struct Arena {

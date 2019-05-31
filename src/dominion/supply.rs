@@ -1,7 +1,7 @@
-use crate::dominion::kingdom::{CardId};
+use crate::dominion::CardKind;
 use std::collections::HashMap;
 
-type CardPiles = HashMap<CardId, usize>;
+type CardPiles = HashMap<&'static CardKind, usize>;
 
 #[derive(Debug)]
 pub struct Supply {
@@ -9,26 +9,34 @@ pub struct Supply {
     base_cards: CardPiles,
 }
 
-const BASE_CARDS: &'static [(&'static str, &'static dyn Fn(usize) -> usize)] = &[
-    ("Copper", &|n| 60 - 7 * n),
-    ("Silver", &|_| 40),
-    ("Gold", &|_| 30),
-    ("Estate", &|n| if n > 2 { 12 } else { 8 }),
-    ("Duchy", &|n| if n > 2 { 12 } else { 8 }),
-    ("Province", &|n| if n > 2 { 12 } else { 8 }),
-    ("Curse", &|n| 10 * (n - 1)),
+const BASE_CARDS: &'static [(CardKind, &'static dyn Fn(usize) -> usize)] = &[
+    (CardKind::Copper, &|n| 60 - 7 * n),
+    (CardKind::Silver, &|_| 40),
+    (CardKind::Gold, &|_| 30),
+    (CardKind::Estate, &|n| if n > 2 { 12 } else { 8 }),
+    (CardKind::Duchy, &|n| if n > 2 { 12 } else { 8 }),
+    (CardKind::Province, &|n| if n > 2 { 12 } else { 8 }),
+    (CardKind::Curse, &|n| 10 * (n - 1)),
 ];
 
+fn kingdom_card_size(card_id: &CardKind, num_players: usize) -> usize {
+    if let Some(_) = card_id.is_victory() {
+        if num_players > 2 { 12 } else { 8 }
+    } else {
+        10
+    }
+}
+
 impl Supply {
-    pub fn new(kingdom_card_ids: &[CardId], num_players: usize) -> Supply {
+    pub fn new(kingdom_card_ids: &'static [CardKind], num_players: usize) -> Supply {
         Supply {
             kingdom_cards: kingdom_card_ids
                 .iter()
-                .map(|&card_id| (card_id, 10))
+                .map(|card_id| (card_id, kingdom_card_size(card_id, num_players)))
                 .collect(),
             base_cards: BASE_CARDS
                 .iter()
-                .map(|&(id, f)| (id, f(num_players)))
+                .map(|(id, f)| (id, f(num_players)))
                 .collect(),
         }
     }

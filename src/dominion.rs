@@ -6,3 +6,6 @@ pub use self::kingdom::KingdomSet;
 
 pub mod supply;
 pub use self::supply::Supply;
+
+pub mod card;
+pub use self::card::CardKind;
