@@ -1,5 +1,5 @@
+use crate::dominion::kingdom::{CardId};
 use std::collections::HashMap;
-use crate::dominion::kingdom::{CardId, Kingdom};
 
 type CardPiles = HashMap<CardId, usize>;
 
@@ -9,46 +9,27 @@ pub struct Supply {
     base_cards: CardPiles,
 }
 
-fn starting_size(card: CardId, num_players: usize) -> usize{
-    // TODO different size depending on victory/num_players
-    match card {
-        "Copper" => 60 - 7*num_players,
-        "Silver" => 40,
-        "Gold" => 30,
-        "Estate" => 8 + 4*((num_players > 2) as usize),
-        "Duchy" => 8 + 4*((num_players > 2) as usize),
-        "Province" => 8 + 4*((num_players > 2) as usize),
-        "Curse" => 10 * (num_players - 1),
-        _ => 10,
-    }
-}
+const BASE_CARDS: &'static [(&'static str, &'static dyn Fn(usize) -> usize)] = &[
+    ("Copper", &|n| 60 - 7 * n),
+    ("Silver", &|_| 40),
+    ("Gold", &|_| 30),
+    ("Estate", &|n| if n > 2 { 12 } else { 8 }),
+    ("Duchy", &|n| if n > 2 { 12 } else { 8 }),
+    ("Province", &|n| if n > 2 { 12 } else { 8 }),
+    ("Curse", &|n| 10 * (n - 1)),
+];
 
 impl Supply {
-    pub fn new(kingdom: Kingdom, num_players: usize) -> Supply {
-        let mut kingdom_cards = CardPiles::new();
-        let mut base_cards = CardPiles::new();
-
-        let insert_card = |card_pile: &mut CardPiles, card_id| {
-            card_pile.insert(card_id, starting_size(card_id, num_players))
-        };
-
-        for k in ["Copper",
-                  "Silver",
-                  "Gold",
-                  "Estate",
-                  "Duchy",
-                  "Province",
-                  "Curse"].iter() {
-            insert_card(&mut base_cards, k);
-        }
-
-        for k in kingdom.iter() {
-            insert_card(&mut kingdom_cards, k);
-        }
-
+    pub fn new(kingdom_card_ids: &[CardId], num_players: usize) -> Supply {
         Supply {
-            kingdom_cards,
-            base_cards,
+            kingdom_cards: kingdom_card_ids
+                .iter()
+                .map(|&card_id| (card_id, 10))
+                .collect(),
+            base_cards: BASE_CARDS
+                .iter()
+                .map(|&(id, f)| (id, f(num_players)))
+                .collect(),
         }
     }
 }
