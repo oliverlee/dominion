@@ -7,9 +7,9 @@ pub enum KingdomSet {
 }
 
 impl KingdomSet {
-    pub fn cards(&self) -> Kingdom {
+    pub fn cards(&self) -> &Kingdom {
         match self {
-            KingdomSet::FirstGame => [
+            KingdomSet::FirstGame => &[
                 "1",
                 "2",
                 "3",
