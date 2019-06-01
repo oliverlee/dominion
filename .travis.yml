@@ -1,11 +1,13 @@
 language: rust
-
 cache: cargo
-
 rust:
   - stable
   - beta
   - nightly
+
+# only test master and tagged releases on push
+# always test things that aren't pushes (like PRs)
+if: type != push OR branch = master OR branch =~ /^v\d+\.\d+(\.\d+)?(-\S*)?$/
 
 script:
   - cargo build --verbose --all
