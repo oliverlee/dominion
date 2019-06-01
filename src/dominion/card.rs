@@ -52,6 +52,15 @@ impl CardKind {
         }
     }
 
+    pub fn treasure(&self) -> Option<i32> {
+        match self {
+            CardKind::Copper => Some(1),
+            CardKind::Silver => Some(2),
+            CardKind::Gold => Some(3),
+            _ => None,
+        }
+    }
+
     // TODO: support non-standard actions
     pub fn action(&self) -> Option<&'static CardAction> {
         match self {
