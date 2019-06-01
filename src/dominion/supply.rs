@@ -3,12 +3,6 @@ use std::collections::HashMap;
 
 type CardPiles = HashMap<&'static CardKind, usize>;
 
-#[derive(Debug)]
-pub struct Supply {
-    kingdom_cards: CardPiles,
-    base_cards: CardPiles,
-}
-
 const BASE_CARDS: &'static [(CardKind, &'static dyn Fn(usize) -> usize)] = &[
     (CardKind::Copper, &|n| 60 - 7 * n),
     (CardKind::Silver, &|_| 40),
@@ -25,6 +19,12 @@ fn kingdom_card_size(card_id: &CardKind, num_players: usize) -> usize {
     } else {
         10
     }
+}
+
+#[derive(Debug)]
+pub struct Supply {
+    kingdom_cards: CardPiles,
+    base_cards: CardPiles,
 }
 
 impl Supply {
