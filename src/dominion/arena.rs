@@ -24,5 +24,3 @@ impl Arena {
         &mut self.players
     }
 }
-
-
