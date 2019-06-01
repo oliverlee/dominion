@@ -40,3 +40,30 @@ impl Supply {
         }
     }
 }
+
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_kingdom_card_size_regular_card() {
+        let regular_card = &CardKind::Cellar;
+        assert!(&regular_card.victory_points().is_none());
+
+        for num_players in 2..5 {
+            assert_eq!(kingdom_card_size(&regular_card, num_players), 10);
+        }
+    }
+
+    #[test]
+    fn test_kingdom_card_size_victory_card() {
+        let victory_card = &CardKind::Estate;
+        assert!(victory_card.victory_points().is_some());
+
+        assert_eq!(kingdom_card_size(&victory_card, 2), 8);
+        assert_eq!(kingdom_card_size(&victory_card, 3), 12);
+        assert_eq!(kingdom_card_size(&victory_card, 4), 12);
+    }
+}
