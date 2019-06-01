@@ -10,5 +10,6 @@ rust:
 if: type != push OR branch = master OR branch =~ /^v\d+\.\d+(\.\d+)?(-\S*)?$/
 
 script:
+  - cargo fmt -v -- --check
   - cargo build --verbose --all
   - cargo test --verbose --all
