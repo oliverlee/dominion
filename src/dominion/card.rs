@@ -62,45 +62,45 @@ impl CardKind {
     }
 
     // TODO: support non-standard actions
-    pub fn action(&self) -> Option<&'static CardAction> {
+    pub fn action(&self) -> Option<&'static CardEffect> {
         match self {
-            CardKind::Cellar => Some(&CardAction {
+            CardKind::Cellar => Some(&CardEffect {
                 card: 0, // FIXME
                 action: 1,
                 buy: 0,
                 worth: 0,
             }),
-            CardKind::Moat => Some(&CardAction {
+            CardKind::Moat => Some(&CardEffect {
                 card: 2,
                 action: 0,
                 buy: 0,
                 worth: 0,
             }),
-            CardKind::Village => Some(&CardAction {
+            CardKind::Village => Some(&CardEffect {
                 card: 1,
                 action: 2,
                 buy: 0,
                 worth: 0,
             }),
-            CardKind::Merchant => Some(&CardAction {
+            CardKind::Merchant => Some(&CardEffect {
                 card: 1,
                 action: 1,
                 buy: 0,
                 worth: 0, // FIXME
             }),
-            CardKind::Smithy => Some(&CardAction {
+            CardKind::Smithy => Some(&CardEffect {
                 card: 3,
                 action: 0,
                 buy: 0,
                 worth: 0,
             }),
-            CardKind::Militia => Some(&CardAction {
+            CardKind::Militia => Some(&CardEffect {
                 card: 3,
                 action: 0,
                 buy: 0,
                 worth: 0,
             }),
-            CardKind::Market => Some(&CardAction {
+            CardKind::Market => Some(&CardEffect {
                 card: 1,
                 action: 1,
                 buy: 1,
@@ -112,7 +112,7 @@ impl CardKind {
 }
 
 #[derive(Debug)]
-pub struct CardAction {
+pub struct CardEffect {
     pub card: i32,
     pub action: i32,
     pub buy: i32,

@@ -29,8 +29,15 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Eq, PartialEq)]
 enum TurnPhase {
-    Action { action: i32, buy: i32, worth: i32 },
-    Buy { buy: i32, worth: i32 },
+    Action {
+        remaining_actions: i32,
+        remaining_buys: i32,
+        total_wealth: i32,
+    },
+    Buy {
+        remaining_buys: i32,
+        total_wealth: i32,
+    },
 }
 
 type CardVec = Vec<&'static CardKind>;
@@ -90,9 +97,9 @@ impl Player {
     pub fn start_turn(&mut self) -> Result<()> {
         if let None = self.phase {
             self.phase = Some(TurnPhase::Action {
-                action: 1,
-                buy: 0,
-                worth: 0,
+                remaining_actions: 1,
+                remaining_buys: 0,
+                total_wealth: 0,
             });
 
             Ok(())
@@ -103,12 +110,15 @@ impl Player {
 
     pub fn start_buy_phase(&mut self) -> Result<()> {
         if let Some(TurnPhase::Action {
-            action: _,
-            mut buy,
-            worth,
+            remaining_actions: _,
+            mut remaining_buys,
+            total_wealth,
         }) = self.phase
         {
-            self.phase = Some(TurnPhase::Buy { buy, worth });
+            self.phase = Some(TurnPhase::Buy {
+                remaining_buys,
+                total_wealth,
+            });
 
             Ok(())
         } else {
@@ -132,16 +142,20 @@ impl Player {
             Err(Error::InvalidCardIndex)
         } else if let Some(phase) = &mut self.phase {
             match phase {
-                TurnPhase::Action { action, buy, worth } => {
-                    if *action > 0 {
-                        if let Some(ca) = self.hand[card_index].action() {
-                            *action -= 1;
+                TurnPhase::Action {
+                    remaining_actions,
+                    remaining_buys,
+                    total_wealth,
+                } => {
+                    if *remaining_actions > 0 {
+                        if let Some(e) = self.hand[card_index].action() {
+                            *remaining_actions -= 1;
 
-                            *action += ca.action;
-                            *buy += ca.buy;
-                            *worth += ca.worth;
+                            *remaining_actions += e.action;
+                            *remaining_buys += e.buy;
+                            *total_wealth += e.worth;
 
-                            for _ in 0..ca.card {
+                            for _ in 0..e.card {
                                 self.draw_card();
                             }
 
@@ -154,9 +168,12 @@ impl Player {
                         Err(Error::NoMoreActions)
                     }
                 }
-                TurnPhase::Buy { buy, worth } => {
+                TurnPhase::Buy {
+                    remaining_buys,
+                    total_wealth,
+                } => {
                     if let Some(i) = self.hand[card_index].treasure() {
-                        *worth += i;
+                        *total_wealth += i;
 
                         self.in_play.push(self.hand.remove(card_index));
                         Ok(())
@@ -180,9 +197,9 @@ mod tests {
         let mut p = Player::new();
 
         p.phase = Some(TurnPhase::Action {
-            action: 1,
-            buy: 0,
-            worth: 0,
+            remaining_actions: 1,
+            remaining_buys: 0,
+            total_wealth: 0,
         });
 
         let r = p.play_card(0);
@@ -210,9 +227,9 @@ mod tests {
         let mut p = Player::new();
 
         p.phase = Some(TurnPhase::Action {
-            action: 1,
-            buy: 0,
-            worth: 0,
+            remaining_actions: 1,
+            remaining_buys: 0,
+            total_wealth: 0,
         });
 
         // Set hand to have a single card
@@ -225,9 +242,9 @@ mod tests {
         assert_eq!(
             p.phase.unwrap(),
             TurnPhase::Action {
-                action: 0,
-                buy: 0,
-                worth: 0
+                remaining_actions: 0,
+                remaining_buys: 0,
+                total_wealth: 0
             }
         );
     }
@@ -236,7 +253,10 @@ mod tests {
     fn play_card_smithy_during_buy_phase() {
         let mut p = Player::new();
 
-        p.phase = Some(TurnPhase::Buy { buy: 1, worth: 0 });
+        p.phase = Some(TurnPhase::Buy {
+            remaining_buys: 1,
+            total_wealth: 0,
+        });
 
         // Set hand to have a single card
         p.hand.push(&CardKind::Smithy);
@@ -253,9 +273,9 @@ mod tests {
         let mut p = Player::new();
 
         p.phase = Some(TurnPhase::Action {
-            action: 1,
-            buy: 0,
-            worth: 0,
+            remaining_actions: 1,
+            remaining_buys: 0,
+            total_wealth: 0,
         });
 
         // Set hand to have a single card
@@ -272,7 +292,10 @@ mod tests {
     fn play_card_gold_during_buy_phase() {
         let mut p = Player::new();
 
-        p.phase = Some(TurnPhase::Buy { buy: 1, worth: 0 });
+        p.phase = Some(TurnPhase::Buy {
+            remaining_buys: 1,
+            total_wealth: 0,
+        });
 
         // Set hand to have a single card
         p.hand.push(&CardKind::Gold);
@@ -281,6 +304,12 @@ mod tests {
 
         assert!(r.is_ok());
         assert_eq!(p.hand.len(), 0);
-        assert_eq!(p.phase.unwrap(), TurnPhase::Buy { buy: 1, worth: 3 });
+        assert_eq!(
+            p.phase.unwrap(),
+            TurnPhase::Buy {
+                remaining_buys: 1,
+                total_wealth: 3
+            }
+        );
     }
 }
