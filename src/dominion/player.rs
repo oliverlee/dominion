@@ -1,9 +1,9 @@
 extern crate rand;
 
 use crate::dominion::CardKind;
-use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
+use rand::SeedableRng;
 
 static mut RNG: Option<StdRng> = None;
 
@@ -14,7 +14,6 @@ unsafe fn rng() -> &'static mut StdRng {
 
     RNG.as_mut().unwrap()
 }
-
 
 type CardVec = Vec<&'static CardKind>;
 
@@ -44,7 +43,9 @@ impl Player {
     }
 
     fn shuffle_deck(&mut self) {
-        unsafe { self.deck_pile.shuffle(rng()); }
+        unsafe {
+            self.deck_pile.shuffle(rng());
+        }
     }
 
     fn draw_card(&mut self) {

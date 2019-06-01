@@ -19,7 +19,6 @@ pub enum CardKind {
     Mine,
 }
 
-
 impl CardKind {
     pub fn cost(&self) -> i32 {
         match self {
