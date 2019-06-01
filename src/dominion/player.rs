@@ -79,10 +79,50 @@ impl Player {
     }
 
     pub fn cleanup(&mut self) {
+        self.discard_pile.append(&mut self.in_play);
         self.discard_pile.append(&mut self.hand);
 
         for _ in 0..5 {
             self.draw_card();
+        }
+    }
+
+    pub fn start_turn(&mut self) -> Result<()> {
+        if let None = self.phase {
+            self.phase = Some(TurnPhase::Action {
+                action: 1,
+                buy: 0,
+                worth: 0,
+            });
+
+            Ok(())
+        } else {
+            Err(Error::WrongTurnPhase)
+        }
+    }
+
+    pub fn start_buy_phase(&mut self) -> Result<()> {
+        if let Some(TurnPhase::Action {
+            action: _,
+            mut buy,
+            worth,
+        }) = self.phase
+        {
+            self.phase = Some(TurnPhase::Buy { buy, worth });
+
+            Ok(())
+        } else {
+            Err(Error::WrongTurnPhase)
+        }
+    }
+
+    pub fn end_turn(&mut self) -> Result<()> {
+        if let Some(TurnPhase::Buy { .. }) = self.phase {
+            self.phase = None;
+
+            Ok(())
+        } else {
+            Err(Error::WrongTurnPhase)
         }
     }
 
