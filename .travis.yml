@@ -6,8 +6,6 @@ os:
 language: rust
 cache: cargo
 rust:
-  - stable
-  - beta
   - nightly
 
 # only test master and tagged releases on push
