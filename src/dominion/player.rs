@@ -20,9 +20,10 @@ pub enum Error {
     NoMoreActions,
     NoMoreBuys,
     NoMoreCards,
-    NotEnoughWorth,
+    NotEnoughWealth,
     InvalidCardIndex,
     WrongTurnPhase,
+    InvalidSupplyChoice,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -136,6 +137,37 @@ impl Player {
         }
     }
 
+    pub fn buy_card(&mut self, card: &'static CardKind) -> Result<()> {
+        if let Some(phase) = &mut self.phase {
+            if let TurnPhase::Buy {
+                remaining_buys,
+                total_wealth,
+            } = phase
+            {
+                if false {
+                    // card not in kingdom_cards or base_cards
+                    // or pile is empty
+                    return Err(Error::InvalidSupplyChoice);
+                } else if *remaining_buys == 0 {
+                    return Err(Error::NoMoreBuys);
+                } else if card.cost() > *total_wealth {
+                    return Err(Error::NotEnoughWealth);
+                } else {
+                    *remaining_buys -= 1;
+                    *total_wealth -= card.cost();
+
+                    // remove from supply
+
+                    self.discard_pile.push(card);
+
+                    return Ok(());
+                }
+            }
+        }
+        Err(Error::WrongTurnPhase)
+    }
+
+    // todo: change card_index card type?
     pub fn play_card(&mut self, card_index: usize) -> Result<()> {
         // TODO handle non-standard card actions
         if card_index >= self.hand.len() {
@@ -191,6 +223,55 @@ impl Player {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn buy_card_copper() {
+        let mut p = Player::new();
+
+        p.phase = Some(TurnPhase::Buy {
+            remaining_buys: 1,
+            total_wealth: 0,
+        });
+
+        let r = p.buy_card(&CardKind::Copper);
+
+        assert!(r.is_ok());
+        assert_eq!(p.discard_pile[0], &CardKind::Copper);
+    }
+
+    #[test]
+    fn buy_card_no_remaining_buys() {
+        let mut p = Player::new();
+
+        let c = &CardKind::Gold;
+
+        p.phase = Some(TurnPhase::Buy {
+            remaining_buys: 0,
+            total_wealth: c.cost(),
+        });
+
+        let r = p.buy_card(c);
+
+        assert!(r.is_err());
+        assert_eq!(r.unwrap_err(), Error::NoMoreBuys);
+        assert!(p.discard_pile.is_empty());
+    }
+
+    #[test]
+    fn buy_card_not_enough_wealth() {
+        let mut p = Player::new();
+
+        p.phase = Some(TurnPhase::Buy {
+            remaining_buys: 1,
+            total_wealth: 0,
+        });
+
+        let r = p.buy_card(&CardKind::Gold);
+
+        assert!(r.is_err());
+        assert_eq!(r.unwrap_err(), Error::NotEnoughWealth);
+        assert!(p.discard_pile.is_empty());
+    }
 
     #[test]
     fn play_invalid_card() {
