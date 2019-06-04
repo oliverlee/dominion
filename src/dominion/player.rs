@@ -90,7 +90,7 @@ impl Player {
         self.hand.push(self.deck_pile.remove(0));
     }
 
-    pub fn cleanup(&mut self) {
+    pub(crate) fn cleanup(&mut self) {
         self.discard_pile.append(&mut self.in_play);
         self.discard_pile.append(&mut self.hand);
 

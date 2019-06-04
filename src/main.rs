@@ -8,14 +8,8 @@ fn main() {
     let mut arena = Arena::new(KingdomSet::FirstGame, 2);
     println!("supply {:#?}", arena.supply());
 
-    for p in arena.players() {
-        p.cleanup();
-    }
-    println!("game state: {:#?}", arena.players());
-
-    let p = &mut arena.players()[0];
-
     println!("buying copper on turn 1");
+    let p = &mut arena.players()[0];
     p.start_turn().unwrap();
     p.start_buy_phase().unwrap();
     p.play_card(&CardKind::Copper).unwrap();

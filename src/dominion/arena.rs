@@ -17,7 +17,11 @@ impl Arena {
             .map(|_| Player::new(supply.clone()))
             .collect();
 
-        Arena { supply, players }
+        let mut arena = Arena { supply, players };
+
+        arena.start_game();
+
+        arena
     }
 
     pub fn supply(&self) -> Ref<Supply> {
@@ -26,5 +30,11 @@ impl Arena {
 
     pub fn players(&mut self) -> &mut Vec<Player> {
         &mut self.players
+    }
+
+    fn start_game(&mut self) {
+        for p in self.players() {
+            p.cleanup();
+        }
     }
 }

@@ -54,11 +54,59 @@ impl Supply {
             None => self.kingdom_cards.get_mut(c),
         }
     }
+
+    pub fn is_game_over(&self) -> bool {
+        if *self.base_cards.get(&CardKind::Province).unwrap() == 0 {
+            true
+        } else {
+            self.base_cards
+                .values()
+                .chain(self.kingdom_cards.values())
+                .filter(|x| **x == 0)
+                .nth(2)
+                .is_some()
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dominion::KingdomSet;
+
+    #[test]
+    fn game_not_over_full_supply() {
+        let s = Supply::new(KingdomSet::FirstGame.cards(), 2);
+
+        assert!(!s.is_game_over());
+    }
+
+    #[test]
+    fn game_over_empty_province_pile() {
+        let mut s = Supply::new(KingdomSet::FirstGame.cards(), 2);
+        *s.base_cards.get_mut(&CardKind::Province).unwrap() = 0;
+
+        assert!(s.is_game_over());
+    }
+
+    #[test]
+    fn game_not_over_2_empty_piles() {
+        let mut s = Supply::new(KingdomSet::FirstGame.cards(), 2);
+        *s.get_mut(&CardKind::Copper).unwrap() = 0;
+        *s.get_mut(&CardKind::Cellar).unwrap() = 0;
+
+        assert!(!s.is_game_over());
+    }
+
+    #[test]
+    fn game_over_3_empty_piles() {
+        let mut s = Supply::new(KingdomSet::FirstGame.cards(), 2);
+        *s.get_mut(&CardKind::Copper).unwrap() = 0;
+        *s.get_mut(&CardKind::Cellar).unwrap() = 0;
+        *s.get_mut(&CardKind::Militia).unwrap() = 0;
+
+        assert!(s.is_game_over());
+    }
 
     #[test]
     fn test_kingdom_card_size_regular_card() {
