@@ -2,9 +2,11 @@ use proc_macro2::*;
 use quote::quote;
 use regex::*;
 use scraper::*;
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::{BufReader, BufWriter};
+use std::iter::FromIterator;
 use std::path::Path;
 use std::process::Command;
 
@@ -31,16 +33,27 @@ fn main() -> Result<(), Box<std::error::Error>> {
         ident: String,
     };
 
+    // Generate cards from the base set only.
+    let base_card_indices: HashSet<_> = HashSet::from_iter(
+        sets.into_iter()
+            .find(|s| s.name == "Dominion 2nd Edition")
+            .unwrap()
+            .card_indices,
+    );
+
     let extended_cards: Vec<CardExt> = cards
         .into_iter()
-        .map(|card| {
-            let ident = if card.name.is_empty() {
-                missing_no += 1;
-                format!("MissingNo{}", missing_no)
-            } else {
-                non_ident_regex.replace_all(&card.name, "").to_string()
-            };
-            CardExt { card, ident }
+        .enumerate()
+        .filter_map(|(i, card)| {
+            base_card_indices.iter().find(|&&x| x == i).map(|_| {
+                let ident = if card.name.is_empty() {
+                    missing_no += 1;
+                    format!("MissingNo{}", missing_no)
+                } else {
+                    non_ident_regex.replace_all(&card.name, "").to_string()
+                };
+                CardExt { card, ident }
+            })
         })
         .collect();
 
@@ -95,6 +108,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
     };
 
+    // TODO: Base cards are not included
     file.write_all(tokens.to_string().as_bytes())?;
 
     // Don't forget to flush!
