@@ -151,7 +151,33 @@ impl Arena {
                 remaining_buys,
                 total_wealth,
             } => match location {
-                Location::Hand => Err(Error::NotYetImplemented), // TODO
+                Location::Hand => match self.players[player_id].hand.remove_item(&card) {
+                    Some(card) => match card.action() {
+                        Some(e) => {
+                            if *remaining_actions == 0 {
+                                self.players[player_id].hand.push(card);
+                                Err(Error::NoMoreActions)
+                            } else {
+                                *remaining_actions -= 1;
+                                *remaining_actions += e.action;
+                                *remaining_buys += e.buy;
+                                *total_wealth += e.worth;
+
+                                for _ in 0..e.card {
+                                    self.players[player_id].draw_card();
+                                }
+
+                                self.players[player_id].in_play.push(card);
+                                Ok(())
+                            }
+                        }
+                        None => {
+                            self.players[player_id].hand.push(card);
+                            Err(Error::WrongTurnPhase)
+                        }
+                    },
+                    None => Err(Error::WrongTurnPhase),
+                },
                 _ => Err(Error::InvalidCardLocation),
             },
             TurnPhase::Buy {
@@ -205,6 +231,10 @@ impl Arena {
 
     pub fn check_in_play(&self, player_id: usize) -> Result<&CardVec> {
         Ok(&self.get_player(player_id)?.in_play)
+    }
+
+    pub fn check_in_deck(&self, player_id: usize, card: &'static CardKind) -> Result<bool> {
+        Ok(self.get_player(player_id)?.in_deck(card))
     }
 
     fn start_game(&mut self) {

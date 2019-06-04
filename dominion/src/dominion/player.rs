@@ -80,7 +80,7 @@ impl Player {
         }
     }
 
-    fn draw_card(&mut self) {
+    pub fn draw_card(&mut self) {
         if self.deck_pile.is_empty() {
             self.deck_pile.append(&mut self.discard_pile);
             self.shuffle_deck();
@@ -140,6 +140,15 @@ impl Player {
         } else {
             Err(Error::WrongTurnPhase)
         }
+    }
+
+    pub fn in_deck(&self, card: &'static CardKind) -> bool {
+        self.deck_pile
+            .iter()
+            .chain(self.hand.iter())
+            .chain(self.in_play.iter())
+            .chain(self.discard_pile.iter())
+            .any(|&x| x == card)
     }
 
     pub fn buy_card(&mut self, card: &'static CardKind) -> Result<()> {

@@ -11,7 +11,8 @@ fn main() {
     println!("supply {:#?}", arena.supply());
 
     println!("p1 hand: {:?}", arena.check_hand(0).unwrap());
-    println!("p1 discard pile: {:?}",
+    println!(
+        "p1 discard pile: {:?}",
         arena.check_discard_pile(0).unwrap()
     );
     println!("");
@@ -28,7 +29,9 @@ fn main() {
 
         println!("turn {}", turn_number);
         println!("p1 hand: {:?}", arena.check_hand(0).unwrap());
-        println!("p1 discard pile: {:?}", arena.check_discard_pile(0).unwrap()
+        println!(
+            "p1 discard pile: {:?}",
+            arena.check_discard_pile(0).unwrap()
         );
         println!("");
     }
@@ -64,5 +67,5 @@ fn big_money(arena: &mut Arena, player_id: usize) {
     arena.select_card(player_id, &CardKind::Gold, Location::Supply);
     arena.select_card(player_id, &CardKind::Silver, Location::Supply);
 
-    arena.end_buy_phase(0).unwrap();
+    arena.end_buy_phase(player_id).unwrap();
 }
