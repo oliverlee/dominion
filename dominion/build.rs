@@ -59,7 +59,11 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
     let is_action_match_lines = extended_cards.iter().filter_map(|card| {
         let ident = Ident::new(&card.ident, Span::call_site());
-        let is_action = card.card.type_indices.iter().any(|&index| index == action_type_index);
+        let is_action = card
+            .card
+            .type_indices
+            .iter()
+            .any(|&index| index == action_type_index);
 
         if is_action {
             Some(quote! { CardKind::#ident => true })

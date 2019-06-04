@@ -1,8 +1,8 @@
 use regex::Regex;
+use scraper::*;
 use select::document::Document;
 use select::predicate::{Class, Name};
 use std::collections::HashMap;
-use scraper::*;
 
 fn main() {
     let scrape = scrape_dominion_strategy();
