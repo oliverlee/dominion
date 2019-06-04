@@ -2,17 +2,11 @@ use proc_macro2::*;
 use quote::quote;
 use regex::*;
 use scraper::*;
-use std::collections::HashSet;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::{BufReader, BufWriter};
-use std::iter::FromIterator;
 use std::path::Path;
 use std::process::Command;
-
-enum CardKind {
-    CardName,
-}
 
 fn main() -> Result<(), Box<std::error::Error>> {
     let mut missing_no: usize = 0;
@@ -28,32 +22,32 @@ fn main() -> Result<(), Box<std::error::Error>> {
 
     let non_ident_regex = Regex::new(r"[^\w\d]+").unwrap();
 
-    struct CardExt {
-        card: Card,
+    struct CardExt<'a> {
+        card: &'a Card,
         ident: String,
     };
 
-    // Generate cards from the base set only.
-    let base_card_indices: HashSet<_> = HashSet::from_iter(
-        sets.into_iter()
-            .find(|s| s.name == "Dominion 2nd Edition")
-            .unwrap()
-            .card_indices,
-    );
+    let base_card_indices = sets.iter().flat_map(|set| {
+        if &set.name == "Dominion 2nd Edition" {
+            set.card_indices.iter()
+        } else {
+            [].iter()
+        }
+        .copied()
+    });
 
-    let extended_cards: Vec<CardExt> = cards
-        .into_iter()
-        .enumerate()
-        .filter_map(|(i, card)| {
-            base_card_indices.iter().find(|&&x| x == i).map(|_| {
-                let ident = if card.name.is_empty() {
-                    missing_no += 1;
-                    format!("MissingNo{}", missing_no)
-                } else {
-                    non_ident_regex.replace_all(&card.name, "").to_string()
-                };
-                CardExt { card, ident }
-            })
+    let extended_cards: Vec<CardExt> = base_card_indices
+        .map(|index| {
+            let card = &cards[index as usize];
+
+            let ident = if card.name.is_empty() {
+                missing_no += 1;
+                format!("MissingNo{}", missing_no)
+            } else {
+                non_ident_regex.replace_all(&card.name, "").to_string()
+            };
+
+            CardExt { card, ident }
         })
         .collect();
 
