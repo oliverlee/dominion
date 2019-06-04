@@ -1,23 +1,27 @@
 use crate::dominion::KingdomSet;
 use crate::dominion::Player;
 use crate::dominion::Supply;
+use std::cell::{Ref, RefCell};
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct Arena {
+    supply: Rc<RefCell<Supply>>,
     players: Vec<Player>,
-    supply: Supply,
 }
 
 impl Arena {
     pub fn new(kingdom_set: KingdomSet, num_players: usize) -> Arena {
-        Arena {
-            players: (0..num_players).map(|_| Player::new()).collect(),
-            supply: Supply::new(kingdom_set.cards(), num_players),
-        }
+        let supply = Rc::new(RefCell::new(Supply::new(kingdom_set.cards(), num_players)));
+        let players = (0..num_players)
+            .map(|_| Player::new(supply.clone()))
+            .collect();
+
+        Arena { supply, players }
     }
 
-    pub fn supply(&self) -> &Supply {
-        &self.supply
+    pub fn supply(&self) -> Ref<Supply> {
+        self.supply.borrow()
     }
 
     pub fn players(&mut self) -> &mut Vec<Player> {

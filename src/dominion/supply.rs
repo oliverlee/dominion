@@ -45,6 +45,15 @@ impl Supply {
                 .collect(),
         }
     }
+
+    pub fn get_mut(&mut self, c: &'static CardKind) -> Option<&mut usize> {
+        let r = self.base_cards.get_mut(c);
+
+        match r {
+            Some(_) => r,
+            None => self.kingdom_cards.get_mut(c),
+        }
+    }
 }
 
 #[cfg(test)]

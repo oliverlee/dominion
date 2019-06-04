@@ -1,9 +1,12 @@
 extern crate rand;
 
 use crate::dominion::CardKind;
+use crate::dominion::Supply;
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand::SeedableRng;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 static mut RNG: Option<StdRng> = None;
 
@@ -20,8 +23,8 @@ pub enum Error {
     NoMoreActions,
     NoMoreBuys,
     NoMoreCards,
-    NotEnoughWorth,
-    InvalidCardIndex,
+    NotEnoughWealth,
+    InvalidCardChoice,
     WrongTurnPhase,
 }
 
@@ -49,10 +52,11 @@ pub struct Player {
     in_play: CardVec,
     discard_pile: CardVec,
     phase: Option<TurnPhase>,
+    supply: Rc<RefCell<Supply>>,
 }
 
 impl Player {
-    pub fn new() -> Player {
+    pub fn new(supply: Rc<RefCell<Supply>>) -> Player {
         let mut deck_pile = vec![&CardKind::Copper; 7];
         deck_pile.append(&mut vec![&CardKind::Estate; 3]);
 
@@ -62,6 +66,7 @@ impl Player {
             in_play: CardVec::new(),
             discard_pile: CardVec::new(),
             phase: None,
+            supply,
         };
 
         p.shuffle_deck();
@@ -98,7 +103,7 @@ impl Player {
         if let None = self.phase {
             self.phase = Some(TurnPhase::Action {
                 remaining_actions: 1,
-                remaining_buys: 0,
+                remaining_buys: 1,
                 total_wealth: 0,
             });
 
@@ -111,7 +116,7 @@ impl Player {
     pub fn start_buy_phase(&mut self) -> Result<()> {
         if let Some(TurnPhase::Action {
             remaining_actions: _,
-            mut remaining_buys,
+            remaining_buys,
             total_wealth,
         }) = self.phase
         {
@@ -129,6 +134,7 @@ impl Player {
     pub fn end_turn(&mut self) -> Result<()> {
         if let Some(TurnPhase::Buy { .. }) = self.phase {
             self.phase = None;
+            self.cleanup();
 
             Ok(())
         } else {
@@ -136,54 +142,93 @@ impl Player {
         }
     }
 
-    pub fn play_card(&mut self, card_index: usize) -> Result<()> {
-        // TODO handle non-standard card actions
-        if card_index >= self.hand.len() {
-            Err(Error::InvalidCardIndex)
-        } else if let Some(phase) = &mut self.phase {
-            match phase {
-                TurnPhase::Action {
-                    remaining_actions,
-                    remaining_buys,
-                    total_wealth,
-                } => {
-                    if *remaining_actions > 0 {
-                        if let Some(e) = self.hand[card_index].action() {
-                            *remaining_actions -= 1;
-
-                            *remaining_actions += e.action;
-                            *remaining_buys += e.buy;
-                            *total_wealth += e.worth;
-
-                            for _ in 0..e.card {
-                                self.draw_card();
-                            }
-
-                            self.in_play.push(self.hand.remove(card_index));
-                            Ok(())
+    pub fn buy_card(&mut self, card: &'static CardKind) -> Result<()> {
+        if let Some(phase) = &mut self.phase {
+            if let TurnPhase::Buy {
+                remaining_buys,
+                total_wealth,
+            } = phase
+            {
+                let r = match (*self.supply.borrow_mut()).get_mut(card) {
+                    Some(supply_count) => {
+                        if *supply_count == 0 {
+                            Err(Error::NoMoreCards)
+                        } else if *remaining_buys == 0 {
+                            Err(Error::NoMoreBuys)
+                        } else if card.cost() > *total_wealth {
+                            Err(Error::NotEnoughWealth)
                         } else {
-                            Err(Error::WrongTurnPhase)
-                        }
-                    } else {
-                        Err(Error::NoMoreActions)
-                    }
-                }
-                TurnPhase::Buy {
-                    remaining_buys,
-                    total_wealth,
-                } => {
-                    if let Some(i) = self.hand[card_index].treasure() {
-                        *total_wealth += i;
+                            *remaining_buys -= 1;
+                            *total_wealth -= card.cost();
 
-                        self.in_play.push(self.hand.remove(card_index));
-                        Ok(())
-                    } else {
-                        Err(Error::WrongTurnPhase)
+                            *supply_count -= 1;
+
+                            self.discard_pile.push(card);
+
+                            Ok(())
+                        }
                     }
+                    _ => Err(Error::InvalidCardChoice),
+                };
+
+                return r;
+            }
+        }
+
+        Err(Error::WrongTurnPhase)
+    }
+
+    pub fn play_card(&mut self, card: &'static CardKind) -> Result<()> {
+        // TODO handle non-standard card actions
+        let card = self.hand.remove_item(&card);
+
+        if let Some(card) = card {
+            if let Some(TurnPhase::Action {
+                remaining_actions,
+                remaining_buys,
+                total_wealth,
+            }) = &mut self.phase
+            {
+                if *remaining_actions == 0 {
+                    self.hand.push(card);
+                    Err(Error::NoMoreActions)
+                } else if let Some(e) = card.action() {
+                    *remaining_actions -= 1;
+
+                    *remaining_actions += e.action;
+                    *remaining_buys += e.buy;
+                    *total_wealth += e.worth;
+
+                    for _ in 0..e.card {
+                        self.draw_card()
+                    }
+
+                    self.in_play.push(card);
+                    Ok(())
+                } else {
+                    self.hand.push(card);
+                    Err(Error::WrongTurnPhase)
                 }
+            } else if let Some(TurnPhase::Buy {
+                remaining_buys: _,
+                total_wealth,
+            }) = &mut self.phase
+            {
+                if let Some(i) = card.treasure() {
+                    *total_wealth += i;
+
+                    self.in_play.push(card);
+                    Ok(())
+                } else {
+                    self.hand.push(card);
+                    Err(Error::WrongTurnPhase)
+                }
+            } else {
+                self.hand.push(card);
+                Err(Error::WrongTurnPhase)
             }
         } else {
-            Err(Error::WrongTurnPhase)
+            Err(Error::InvalidCardChoice)
         }
     }
 }
@@ -191,10 +236,103 @@ impl Player {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dominion::KingdomSet;
+
+    fn create_player() -> Player {
+        let supply = Rc::new(RefCell::new(Supply::new(KingdomSet::FirstGame.cards(), 2)));
+
+        Player::new(supply)
+    }
+
+    #[test]
+    fn buy_card_copper() {
+        let mut p = create_player();
+
+        p.phase = Some(TurnPhase::Buy {
+            remaining_buys: 1,
+            total_wealth: 0,
+        });
+
+        let copper_supply = p
+            .supply
+            .borrow_mut()
+            .get_mut(&CardKind::Copper)
+            .unwrap()
+            .to_owned();
+
+        let r = p.buy_card(&CardKind::Copper);
+
+        assert!(r.is_ok());
+        assert_eq!(p.discard_pile[0], &CardKind::Copper);
+        assert_eq!(
+            p.supply
+                .borrow_mut()
+                .get_mut(&CardKind::Copper)
+                .unwrap()
+                .to_owned(),
+            copper_supply - 1
+        );
+    }
+
+    #[test]
+    fn buy_card_market() {
+        let mut p = create_player();
+
+        p.phase = Some(TurnPhase::Buy {
+            remaining_buys: 1,
+            total_wealth: 5,
+        });
+
+        let r = p.buy_card(&CardKind::Market);
+
+        assert!(r.is_ok());
+        assert_eq!(p.discard_pile[0], &CardKind::Market);
+        assert_eq!(
+            p.phase.unwrap(),
+            TurnPhase::Buy {
+                remaining_buys: 0,
+                total_wealth: 0,
+            }
+        );
+    }
+
+    #[test]
+    fn buy_card_no_remaining_buys() {
+        let mut p = create_player();
+
+        let c = &CardKind::Gold;
+
+        p.phase = Some(TurnPhase::Buy {
+            remaining_buys: 0,
+            total_wealth: c.cost(),
+        });
+
+        let r = p.buy_card(c);
+
+        assert!(r.is_err());
+        assert_eq!(r.unwrap_err(), Error::NoMoreBuys);
+        assert!(p.discard_pile.is_empty());
+    }
+
+    #[test]
+    fn buy_card_not_enough_wealth() {
+        let mut p = create_player();
+
+        p.phase = Some(TurnPhase::Buy {
+            remaining_buys: 1,
+            total_wealth: 0,
+        });
+
+        let r = p.buy_card(&CardKind::Gold);
+
+        assert!(r.is_err());
+        assert_eq!(r.unwrap_err(), Error::NotEnoughWealth);
+        assert!(p.discard_pile.is_empty());
+    }
 
     #[test]
     fn play_invalid_card() {
-        let mut p = Player::new();
+        let mut p = create_player();
 
         p.phase = Some(TurnPhase::Action {
             remaining_actions: 1,
@@ -202,20 +340,18 @@ mod tests {
             total_wealth: 0,
         });
 
-        let r = p.play_card(0);
+        let r = p.play_card(&CardKind::Copper);
 
         assert!(r.is_err());
-        assert_eq!(r.unwrap_err(), Error::InvalidCardIndex);
+        assert_eq!(r.unwrap_err(), Error::InvalidCardChoice);
     }
 
     #[test]
     fn play_card_out_of_turn() {
-        let mut p = Player::new();
+        let mut p = create_player();
 
-        // Set hand to have a single card
         p.hand.push(&CardKind::Gold);
-
-        let r = p.play_card(0);
+        let r = p.play_card(p.hand[0]);
 
         assert!(r.is_err());
         assert_eq!(p.hand.len(), 1);
@@ -224,7 +360,7 @@ mod tests {
 
     #[test]
     fn play_card_smithy_during_action_phase() {
-        let mut p = Player::new();
+        let mut p = create_player();
 
         p.phase = Some(TurnPhase::Action {
             remaining_actions: 1,
@@ -234,8 +370,7 @@ mod tests {
 
         // Set hand to have a single card
         p.hand.push(&CardKind::Smithy);
-
-        let r = p.play_card(0);
+        let r = p.play_card(p.hand[0]);
 
         assert!(r.is_ok());
         assert_eq!(p.hand.len(), 3);
@@ -251,7 +386,7 @@ mod tests {
 
     #[test]
     fn play_card_smithy_during_buy_phase() {
-        let mut p = Player::new();
+        let mut p = create_player();
 
         p.phase = Some(TurnPhase::Buy {
             remaining_buys: 1,
@@ -260,8 +395,7 @@ mod tests {
 
         // Set hand to have a single card
         p.hand.push(&CardKind::Smithy);
-
-        let r = p.play_card(0);
+        let r = p.play_card(p.hand[0]);
 
         assert!(r.is_err());
         assert_eq!(p.hand.len(), 1);
@@ -270,7 +404,7 @@ mod tests {
 
     #[test]
     fn play_card_gold_during_action_phase() {
-        let mut p = Player::new();
+        let mut p = create_player();
 
         p.phase = Some(TurnPhase::Action {
             remaining_actions: 1,
@@ -280,8 +414,7 @@ mod tests {
 
         // Set hand to have a single card
         p.hand.push(&CardKind::Gold);
-
-        let r = p.play_card(0);
+        let r = p.play_card(p.hand[0]);
 
         assert!(r.is_err());
         assert_eq!(p.hand.len(), 1);
@@ -290,7 +423,7 @@ mod tests {
 
     #[test]
     fn play_card_gold_during_buy_phase() {
-        let mut p = Player::new();
+        let mut p = create_player();
 
         p.phase = Some(TurnPhase::Buy {
             remaining_buys: 1,
@@ -299,8 +432,7 @@ mod tests {
 
         // Set hand to have a single card
         p.hand.push(&CardKind::Gold);
-
-        let r = p.play_card(0);
+        let r = p.play_card(p.hand[0]);
 
         assert!(r.is_ok());
         assert_eq!(p.hand.len(), 0);
