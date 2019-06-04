@@ -2,8 +2,6 @@ use crate::dominion::player::{CardVec, Player};
 use crate::dominion::CardKind;
 use crate::dominion::KingdomSet;
 use crate::dominion::Supply;
-use std::cell::{Ref, RefCell};
-use std::rc::Rc;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum Error {
@@ -56,21 +54,16 @@ struct Turn {
 
 #[derive(Debug)]
 pub struct Arena {
-    supply: Rc<RefCell<Supply>>,
+    supply: Supply,
     players: Vec<Player>,
     turn: Turn,
 }
 
 impl Arena {
     pub fn new(kingdom_set: KingdomSet, num_players: usize) -> Arena {
-        let supply = Rc::new(RefCell::new(Supply::new(kingdom_set.cards(), num_players)));
-        let players: Vec<_> = (0..num_players)
-            .map(|_| Player::new(supply.clone()))
-            .collect();
-
         let mut arena = Arena {
-            supply,
-            players,
+            supply: Supply::new(kingdom_set.cards(), num_players),
+            players: (0..num_players).map(|_| Player::new()).collect(),
             turn: Turn {
                 player_id: 0,
                 phase: STARTING_TURNPHASE,
@@ -82,8 +75,8 @@ impl Arena {
         arena
     }
 
-    pub fn supply(&self) -> Ref<Supply> {
-        self.supply.borrow()
+    pub fn supply(&self) -> &Supply {
+        &self.supply
     }
 
     pub fn turn(&self) -> &Turn {
@@ -198,7 +191,7 @@ impl Arena {
                     },
                     None => Err(Error::InvalidCardChoice),
                 },
-                Location::Supply => match (*self.supply.borrow_mut()).get_mut(card) {
+                Location::Supply => match self.supply.get_mut(card) {
                     Some(supply_count) => {
                         if *supply_count == 0 {
                             Err(Error::NoMoreCards)
