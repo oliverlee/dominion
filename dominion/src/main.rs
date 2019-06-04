@@ -45,12 +45,12 @@ fn skip_turn(arena: &mut Arena, player_id: usize) {
 }
 
 fn play_all_treasures(arena: &mut Arena, player_id: usize) {
-    for card in &[&CardKind::Gold, &CardKind::Silver, &CardKind::Copper] {
+    for &card in [CardKind::Gold, CardKind::Silver, CardKind::Copper].iter() {
         while arena
             .check_hand(player_id)
             .unwrap()
             .iter()
-            .find(|x| *x == card)
+            .find(|&&x| x == card)
             .is_some()
         {
             arena.select_card(player_id, card, Location::Hand).unwrap();
@@ -63,9 +63,9 @@ fn big_money(arena: &mut Arena, player_id: usize) {
 
     play_all_treasures(arena, player_id);
 
-    arena.select_card(player_id, &CardKind::Province, Location::Supply);
-    arena.select_card(player_id, &CardKind::Gold, Location::Supply);
-    arena.select_card(player_id, &CardKind::Silver, Location::Supply);
+    arena.select_card(player_id, CardKind::Province, Location::Supply);
+    arena.select_card(player_id, CardKind::Gold, Location::Supply);
+    arena.select_card(player_id, CardKind::Silver, Location::Supply);
 
     arena.end_buy_phase(player_id).unwrap();
 }

@@ -15,7 +15,7 @@ unsafe fn rng() -> &'static mut StdRng {
     RNG.as_mut().unwrap()
 }
 
-pub type CardVec = Vec<&'static CardKind>;
+pub type CardVec = Vec<CardKind>;
 
 #[derive(Debug)]
 pub struct Player {
@@ -27,8 +27,8 @@ pub struct Player {
 
 impl Player {
     pub fn new() -> Player {
-        let mut deck_pile = vec![&CardKind::Copper; 7];
-        deck_pile.append(&mut vec![&CardKind::Estate; 3]);
+        let mut deck_pile = vec![CardKind::Copper; 7];
+        deck_pile.append(&mut vec![CardKind::Estate; 3]);
 
         let mut p = Player {
             deck_pile,
@@ -67,7 +67,7 @@ impl Player {
         }
     }
 
-    pub fn in_deck(&self, card: &'static CardKind) -> bool {
+    pub fn in_deck(&self, card: CardKind) -> bool {
         self.deck_pile
             .iter()
             .chain(self.hand.iter())

@@ -133,7 +133,7 @@ impl Arena {
     pub fn select_card(
         &mut self,
         player_id: usize,
-        card: &'static CardKind,
+        card: CardKind,
         location: Location,
     ) -> Result<()> {
         self.check_active_player(player_id)?;
@@ -181,11 +181,11 @@ impl Arena {
                     Some(card) => match card.treasure() {
                         Some(i) => {
                             *total_wealth += i;
-                            self.players[player_id].in_play.push(&card);
+                            self.players[player_id].in_play.push(card);
                             Ok(())
                         }
                         None => {
-                            self.players[player_id].hand.push(&card);
+                            self.players[player_id].hand.push(card);
                             Err(Error::InvalidCardChoice)
                         }
                     },
@@ -226,7 +226,7 @@ impl Arena {
         Ok(&self.get_player(player_id)?.in_play)
     }
 
-    pub fn check_in_deck(&self, player_id: usize, card: &'static CardKind) -> Result<bool> {
+    pub fn check_in_deck(&self, player_id: usize, card: CardKind) -> Result<bool> {
         Ok(self.get_player(player_id)?.in_deck(card))
     }
 

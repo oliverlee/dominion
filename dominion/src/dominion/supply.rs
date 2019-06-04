@@ -1,7 +1,7 @@
 use crate::dominion::CardKind;
 use std::collections::HashMap;
 
-type CardPiles = HashMap<&'static CardKind, usize>;
+type CardPiles = HashMap<CardKind, usize>;
 
 const BASE_CARDS: &'static [(CardKind, &'static dyn Fn(usize) -> usize)] = &[
     (CardKind::Copper, &|n| 60 - 7 * n),
@@ -13,7 +13,7 @@ const BASE_CARDS: &'static [(CardKind, &'static dyn Fn(usize) -> usize)] = &[
     (CardKind::Curse, &|n| 10 * (n - 1)),
 ];
 
-fn kingdom_card_size(card_id: &CardKind, num_players: usize) -> usize {
+fn kingdom_card_size(card_id: CardKind, num_players: usize) -> usize {
     match card_id.victory_points() {
         Some(_) => {
             if num_players > 2 {
@@ -37,21 +37,21 @@ impl Supply {
         Supply {
             kingdom_cards: kingdom_card_ids
                 .iter()
-                .map(|card_id| (card_id, kingdom_card_size(card_id, num_players)))
+                .map(|&card_id| (card_id, kingdom_card_size(card_id, num_players)))
                 .collect(),
             base_cards: BASE_CARDS
                 .iter()
-                .map(|(id, f)| (id, f(num_players)))
+                .map(|(id, f)| (*id, f(num_players)))
                 .collect(),
         }
     }
 
-    pub fn get_mut(&mut self, c: &'static CardKind) -> Option<&mut usize> {
-        let r = self.base_cards.get_mut(c);
+    pub fn get_mut(&mut self, c: CardKind) -> Option<&mut usize> {
+        let r = self.base_cards.get_mut(&c);
 
         match r {
             Some(_) => r,
-            None => self.kingdom_cards.get_mut(c),
+            None => self.kingdom_cards.get_mut(&c),
         }
     }
 
@@ -62,7 +62,7 @@ impl Supply {
             self.base_cards
                 .values()
                 .chain(self.kingdom_cards.values())
-                .filter(|x| **x == 0)
+                .filter(|&&x| x == 0)
                 .nth(2)
                 .is_some()
         }
@@ -84,7 +84,7 @@ mod tests {
     #[test]
     fn game_over_empty_province_pile() {
         let mut s = Supply::new(KingdomSet::FirstGame.cards(), 2);
-        *s.base_cards.get_mut(&CardKind::Province).unwrap() = 0;
+        *s.get_mut(CardKind::Province).unwrap() = 0;
 
         assert!(s.is_game_over());
     }
@@ -92,8 +92,8 @@ mod tests {
     #[test]
     fn game_not_over_2_empty_piles() {
         let mut s = Supply::new(KingdomSet::FirstGame.cards(), 2);
-        *s.get_mut(&CardKind::Copper).unwrap() = 0;
-        *s.get_mut(&CardKind::Cellar).unwrap() = 0;
+        *s.get_mut(CardKind::Copper).unwrap() = 0;
+        *s.get_mut(CardKind::Cellar).unwrap() = 0;
 
         assert!(!s.is_game_over());
     }
@@ -101,30 +101,30 @@ mod tests {
     #[test]
     fn game_over_3_empty_piles() {
         let mut s = Supply::new(KingdomSet::FirstGame.cards(), 2);
-        *s.get_mut(&CardKind::Copper).unwrap() = 0;
-        *s.get_mut(&CardKind::Cellar).unwrap() = 0;
-        *s.get_mut(&CardKind::Militia).unwrap() = 0;
+        *s.get_mut(CardKind::Copper).unwrap() = 0;
+        *s.get_mut(CardKind::Cellar).unwrap() = 0;
+        *s.get_mut(CardKind::Militia).unwrap() = 0;
 
         assert!(s.is_game_over());
     }
 
     #[test]
     fn test_kingdom_card_size_regular_card() {
-        let regular_card = &CardKind::Cellar;
-        assert!(&regular_card.victory_points().is_none());
+        let regular_card = CardKind::Cellar;
+        assert!(regular_card.victory_points().is_none());
 
         for num_players in 2..5 {
-            assert_eq!(kingdom_card_size(&regular_card, num_players), 10);
+            assert_eq!(kingdom_card_size(regular_card, num_players), 10);
         }
     }
 
     #[test]
     fn test_kingdom_card_size_victory_card() {
-        let victory_card = &CardKind::Estate;
+        let victory_card = CardKind::Estate;
         assert!(victory_card.victory_points().is_some());
 
-        assert_eq!(kingdom_card_size(&victory_card, 2), 8);
-        assert_eq!(kingdom_card_size(&victory_card, 3), 12);
-        assert_eq!(kingdom_card_size(&victory_card, 4), 12);
+        assert_eq!(kingdom_card_size(victory_card, 2), 8);
+        assert_eq!(kingdom_card_size(victory_card, 3), 12);
+        assert_eq!(kingdom_card_size(victory_card, 4), 12);
     }
 }
