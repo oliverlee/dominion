@@ -1,8 +1,11 @@
+cargo-features = ["default-run"]
+
 [package]
 name = "dominion"
 version = "0.1.0"
 authors = ["Oliver Lee <oliverzlee@gmail.com>", "Björn Andersson <andebjor@gmail.com>", "Mick van Gelderen <mickvangelderen@gmail.com>"]
 edition = "2018"
+default-run = "dominion"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
