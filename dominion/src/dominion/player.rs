@@ -43,14 +43,14 @@ enum TurnPhase {
     },
 }
 
-type CardVec = Vec<&'static CardKind>;
+pub type CardVec = Vec<&'static CardKind>;
 
 #[derive(Debug)]
 pub struct Player {
-    deck_pile: CardVec,
-    hand: CardVec,
-    in_play: CardVec,
-    discard_pile: CardVec,
+    pub deck_pile: CardVec,
+    pub hand: CardVec,
+    pub in_play: CardVec,
+    pub discard_pile: CardVec,
     phase: Option<TurnPhase>,
     supply: Rc<RefCell<Supply>>,
 }
@@ -90,7 +90,7 @@ impl Player {
         self.hand.push(self.deck_pile.remove(0));
     }
 
-    pub(crate) fn cleanup(&mut self) {
+    pub fn cleanup(&mut self) {
         self.discard_pile.append(&mut self.in_play);
         self.discard_pile.append(&mut self.hand);
 
