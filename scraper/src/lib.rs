@@ -7,13 +7,13 @@ pub struct Scrape {
     pub cards: Vec<Card>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Set {
     pub name: String,
     pub card_indices: Vec<usize>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 pub enum Cost {
     None,
     Copper(u8),
@@ -21,7 +21,7 @@ pub enum Cost {
     Special(u8),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Card {
     pub name: String,
     pub type_indices: Vec<usize>,
