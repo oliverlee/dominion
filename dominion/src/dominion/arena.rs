@@ -79,22 +79,8 @@ impl Arena {
         &self.supply
     }
 
-    pub fn turn(&self) -> &Turn {
-        &self.turn
-    }
-
-    fn check_active_player(&mut self, player_id: usize) -> Result<()> {
-        if player_id >= self.players.len() {
-            Err(Error::InvalidPlayerId)
-        } else if player_id != self.turn.player_id {
-            Err(Error::InactivePlayer)
-        } else {
-            Ok(())
-        }
-    }
-
     pub fn end_action_phase(&mut self, player_id: usize) -> Result<()> {
-        self.check_active_player(player_id)?;
+        self.check_active(player_id)?;
 
         match self.turn.phase {
             TurnPhase::Action {
@@ -113,7 +99,7 @@ impl Arena {
     }
 
     pub fn end_buy_phase(&mut self, player_id: usize) -> Result<()> {
-        self.check_active_player(player_id)?;
+        self.check_active(player_id)?;
 
         match &mut self.turn.phase {
             TurnPhase::Buy { .. } => {
@@ -136,7 +122,7 @@ impl Arena {
         card: CardKind,
         location: Location,
     ) -> Result<()> {
-        self.check_active_player(player_id)?;
+        self.check_active(player_id)?;
 
         match &mut self.turn.phase {
             TurnPhase::Action {
@@ -166,10 +152,10 @@ impl Arena {
                         }
                         None => {
                             self.players[player_id].hand.push(card);
-                            Err(Error::WrongTurnPhase)
+                            Err(Error::InvalidCardChoice)
                         }
                     },
-                    None => Err(Error::WrongTurnPhase),
+                    None => Err(Error::InvalidCardChoice),
                 },
                 _ => Err(Error::InvalidCardLocation),
             },
@@ -226,8 +212,18 @@ impl Arena {
         Ok(&self.get_player(player_id)?.played)
     }
 
-    pub fn check_in_deck(&self, player_id: usize, card: CardKind) -> Result<bool> {
+    pub fn check_deck(&self, player_id: usize, card: CardKind) -> Result<bool> {
         Ok(self.get_player(player_id)?.in_deck(card))
+    }
+
+    fn check_active(&mut self, player_id: usize) -> Result<()> {
+        if player_id >= self.players.len() {
+            Err(Error::InvalidPlayerId)
+        } else if player_id != self.turn.player_id {
+            Err(Error::InactivePlayer)
+        } else {
+            Ok(())
+        }
     }
 
     fn start_game(&mut self) {
@@ -251,8 +247,20 @@ mod tests {
     use crate::dominion::{Arena, KingdomSet};
 
     #[test]
-    fn get_player_valid_index() {
+    fn test_check_active_player() {
         let mut arena = Arena::new(KingdomSet::FirstGame, 2);
+
+        let r = arena.check_active(0);
+        assert!(r.is_ok());
+
+        let r = arena.check_active(1);
+        assert!(r.is_err());
+        assert_eq!(r.unwrap_err(), Error::InactivePlayer);
+    }
+
+    #[test]
+    fn get_player_valid_index() {
+        let arena = Arena::new(KingdomSet::FirstGame, 2);
 
         let r = arena.get_player(0);
         assert!(r.is_ok());
@@ -265,10 +273,243 @@ mod tests {
 
     #[test]
     fn get_player_invalid_index() {
-        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
+        let arena = Arena::new(KingdomSet::FirstGame, 2);
 
         let r = arena.get_player(2);
         assert!(r.is_err());
         assert_eq!(r.unwrap_err(), Error::InvalidPlayerId);
+    }
+
+    #[test]
+    fn buy_card_copper() {
+        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
+
+        arena.turn.phase = TurnPhase::Buy {
+            remaining_buys: 1,
+            total_wealth: 0,
+        };
+
+        let copper_supply = arena.supply.get_mut(CardKind::Copper).unwrap().to_owned();
+
+        let r = arena.select_card(0, CardKind::Copper, Location::Supply);
+
+        assert!(r.is_ok());
+        assert_eq!(
+            arena.get_player(0).unwrap().discard_pile,
+            vec![CardKind::Copper]
+        );
+        assert_eq!(
+            arena.supply.get_mut(CardKind::Copper).unwrap().to_owned(),
+            copper_supply - 1
+        );
+        assert_eq!(
+            arena.turn.phase,
+            TurnPhase::Buy {
+                remaining_buys: 0,
+                total_wealth: 0,
+            }
+        );
+    }
+
+    #[test]
+    fn buy_card_market() {
+        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
+
+        arena.turn.phase = TurnPhase::Buy {
+            remaining_buys: 1,
+            total_wealth: 5,
+        };
+
+        let market_supply = arena.supply.get_mut(CardKind::Market).unwrap().to_owned();
+
+        let r = arena.select_card(0, CardKind::Market, Location::Supply);
+
+        assert!(r.is_ok());
+        assert_eq!(
+            arena.get_player(0).unwrap().discard_pile,
+            vec![CardKind::Market]
+        );
+        assert_eq!(
+            arena.supply.get_mut(CardKind::Market).unwrap().to_owned(),
+            market_supply - 1
+        );
+        assert_eq!(
+            arena.turn.phase,
+            TurnPhase::Buy {
+                remaining_buys: 0,
+                total_wealth: 0,
+            }
+        );
+    }
+
+    #[test]
+    fn buy_card_no_remaining_buys() {
+        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
+
+        arena.turn.phase = TurnPhase::Buy {
+            remaining_buys: 0,
+            total_wealth: 100,
+        };
+
+        let r = arena.select_card(0, CardKind::Gold, Location::Supply);
+
+        assert!(r.is_err());
+        assert_eq!(r.unwrap_err(), Error::NoMoreBuys);
+        assert!(arena.get_player(0).unwrap().discard_pile.is_empty());
+    }
+
+    #[test]
+    fn buy_card_not_enough_wealth() {
+        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
+
+        arena.turn.phase = TurnPhase::Buy {
+            remaining_buys: 100,
+            total_wealth: 0,
+        };
+
+        let r = arena.select_card(0, CardKind::Gold, Location::Supply);
+
+        assert!(r.is_err());
+        assert_eq!(r.unwrap_err(), Error::NotEnoughWealth);
+        assert!(arena.get_player(0).unwrap().discard_pile.is_empty());
+    }
+
+    #[test]
+    fn buy_card_not_in_kingdom() {
+        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
+
+        arena.turn.phase = TurnPhase::Buy {
+            remaining_buys: 1,
+            total_wealth: 100,
+        };
+
+        let r = arena.select_card(0, CardKind::Witch, Location::Supply);
+
+        assert!(r.is_err());
+        assert_eq!(r.unwrap_err(), Error::InvalidCardChoice);
+        assert!(arena.get_player(0).unwrap().discard_pile.is_empty());
+    }
+
+    #[test]
+    fn play_card_not_in_hand() {
+        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
+
+        arena.turn.phase = TurnPhase::Action {
+            remaining_actions: 1,
+            remaining_buys: 0,
+            total_wealth: 0,
+        };
+
+        let r = arena.select_card(0, CardKind::Copper, Location::Hand);
+
+        assert!(r.is_err());
+        assert_eq!(r.unwrap_err(), Error::InvalidCardChoice);
+    }
+
+    #[test]
+    fn play_card_out_of_turn() {
+        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
+
+        arena.turn.phase = TurnPhase::Buy {
+            remaining_buys: 1,
+            total_wealth: 0,
+        };
+
+        assert_eq!(arena.turn.player_id, 0);
+
+        arena.players[1].hand.clear();
+        arena.players[1].hand.push(CardKind::Gold);
+        let r = arena.select_card(1, CardKind::Gold, Location::Hand);
+
+        assert!(r.is_err());
+        assert_eq!(r.unwrap_err(), Error::InactivePlayer);
+        assert_eq!(arena.get_player(1).unwrap().hand.len(), 1);
+    }
+
+    #[test]
+    fn play_card_smithy_during_action_phase() {
+        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
+
+        arena.turn.phase = TurnPhase::Action {
+            remaining_actions: 1,
+            remaining_buys: 0,
+            total_wealth: 0,
+        };
+
+        arena.players[0].hand.clear();
+        arena.players[0].hand.push(CardKind::Smithy);
+        let r = arena.select_card(0, CardKind::Smithy, Location::Hand);
+
+        assert!(r.is_ok());
+        assert_eq!(arena.get_player(0).unwrap().hand.len(), 3);
+        assert_eq!(
+            arena.turn.phase,
+            TurnPhase::Action {
+                remaining_actions: 0,
+                remaining_buys: 0,
+                total_wealth: 0
+            }
+        );
+    }
+
+    #[test]
+    fn play_card_smithy_during_buy_phase() {
+        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
+
+        arena.turn.phase = TurnPhase::Buy {
+            remaining_buys: 1,
+            total_wealth: 0,
+        };
+
+        arena.players[0].hand.clear();
+        arena.players[0].hand.push(CardKind::Smithy);
+        let r = arena.select_card(0, CardKind::Smithy, Location::Hand);
+
+        assert!(r.is_err());
+        assert_eq!(r.unwrap_err(), Error::InvalidCardChoice);
+        assert_eq!(arena.get_player(0).unwrap().hand.len(), 1);
+    }
+
+    #[test]
+    fn play_card_gold_during_action_phase() {
+        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
+
+        arena.turn.phase = TurnPhase::Action {
+            remaining_actions: 1,
+            remaining_buys: 0,
+            total_wealth: 0,
+        };
+
+        arena.players[0].hand.clear();
+        arena.players[0].hand.push(CardKind::Gold);
+        let r = arena.select_card(0, CardKind::Gold, Location::Hand);
+
+        assert!(r.is_err());
+        assert_eq!(r.unwrap_err(), Error::InvalidCardChoice);
+        assert_eq!(arena.get_player(0).unwrap().hand.len(), 1);
+    }
+
+    #[test]
+    fn play_card_gold_during_buy_phase() {
+        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
+
+        arena.turn.phase = TurnPhase::Buy {
+            remaining_buys: 1,
+            total_wealth: 0,
+        };
+
+        arena.players[0].hand.clear();
+        arena.players[0].hand.push(CardKind::Gold);
+        let r = arena.select_card(0, CardKind::Gold, Location::Hand);
+
+        assert!(r.is_ok());
+        assert_eq!(arena.get_player(0).unwrap().hand.len(), 0);
+        assert_eq!(
+            arena.turn.phase,
+            TurnPhase::Buy {
+                remaining_buys: 1,
+                total_wealth: 3
+            }
+        );
     }
 }
