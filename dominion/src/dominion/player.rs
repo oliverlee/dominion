@@ -21,7 +21,7 @@ pub type CardVec = Vec<CardKind>;
 pub struct Player {
     pub deck_pile: CardVec,
     pub hand: CardVec,
-    pub in_play: CardVec,
+    pub played: CardVec,
     pub discard_pile: CardVec,
 }
 
@@ -33,7 +33,7 @@ impl Player {
         let mut p = Player {
             deck_pile,
             hand: CardVec::new(),
-            in_play: CardVec::new(),
+            played: CardVec::new(),
             discard_pile: CardVec::new(),
         };
 
@@ -59,7 +59,7 @@ impl Player {
     }
 
     pub fn cleanup(&mut self) {
-        self.discard_pile.append(&mut self.in_play);
+        self.discard_pile.append(&mut self.played);
         self.discard_pile.append(&mut self.hand);
 
         for _ in 0..5 {
@@ -71,9 +71,85 @@ impl Player {
         self.deck_pile
             .iter()
             .chain(self.hand.iter())
-            .chain(self.in_play.iter())
+            .chain(self.played.iter())
             .chain(self.discard_pile.iter())
             .any(|&x| x == card)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_draw_card_no_shuffle() {
+        let mut p = Player::new();
+
+        p.deck_pile.clear();
+        assert!(p.deck_pile.is_empty());
+
+        p.deck_pile.push(CardKind::Copper);
+        p.deck_pile.push(CardKind::Silver);
+
+        p.draw_card();
+
+        assert_eq!(p.deck_pile, vec![CardKind::Silver]);
+        assert_eq!(p.hand, vec![CardKind::Copper]);
+    }
+
+    #[test]
+    fn test_draw_card_shuffle() {
+        let mut p = Player::new();
+
+        p.deck_pile.clear();
+        assert!(p.deck_pile.is_empty());
+
+        for _ in 0..5 {
+            p.discard_pile.push(CardKind::Copper);
+        }
+
+        p.draw_card();
+
+        assert_eq!(p.deck_pile, vec![CardKind::Copper; 4]);
+        assert_eq!(p.hand, vec![CardKind::Copper]);
+    }
+
+    #[test]
+    fn test_cleanup() {
+        let mut p = Player::new();
+
+        p.deck_pile.clear();
+        assert!(p.deck_pile.is_empty());
+
+        for _ in 0..5 {
+            p.deck_pile.push(CardKind::Copper);
+        }
+        p.played.push(CardKind::Silver);
+        p.hand.push(CardKind::Gold);
+
+        p.cleanup();
+
+        assert!(p
+            .discard_pile
+            .iter()
+            .find(|&&x| x == CardKind::Silver)
+            .is_some());
+        assert!(p
+            .discard_pile
+            .iter()
+            .find(|&&x| x == CardKind::Gold)
+            .is_some());
+        assert_eq!(p.discard_pile.len(), 2);
+        assert_eq!(p.hand, vec![CardKind::Copper; 5]);
+        assert!(p.deck_pile.is_empty());
+    }
+
+    #[test]
+    fn test_card_in_deck() {
+        let p = Player::new();
+
+        assert!(p.in_deck(CardKind::Copper));
+        assert!(!p.in_deck(CardKind::Gold));
     }
 }
 

@@ -160,7 +160,7 @@ impl Arena {
                                     self.players[player_id].draw_card();
                                 }
 
-                                self.players[player_id].in_play.push(card);
+                                self.players[player_id].played.push(card);
                                 Ok(())
                             }
                         }
@@ -181,7 +181,7 @@ impl Arena {
                     Some(card) => match card.treasure() {
                         Some(i) => {
                             *total_wealth += i;
-                            self.players[player_id].in_play.push(card);
+                            self.players[player_id].played.push(card);
                             Ok(())
                         }
                         None => {
@@ -222,8 +222,8 @@ impl Arena {
         Ok(&self.get_player(player_id)?.discard_pile)
     }
 
-    pub fn check_in_play(&self, player_id: usize) -> Result<&CardVec> {
-        Ok(&self.get_player(player_id)?.in_play)
+    pub fn check_played(&self, player_id: usize) -> Result<&CardVec> {
+        Ok(&self.get_player(player_id)?.played)
     }
 
     pub fn check_in_deck(&self, player_id: usize, card: CardKind) -> Result<bool> {
