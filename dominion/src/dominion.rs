@@ -10,17 +10,13 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(rng: &mut impl Rng, deck: Vec<CardKind>) -> Self {
-        let mut player = Player {
-            play: vec![],
-            hand: vec![],
+    pub fn new(deck: Vec<CardKind>) -> Self {
+        Player {
             draw: deck,
+            hand: vec![],
+            play: vec![],
             discard: vec![],
-        };
-
-        player.draw(rng, 5);
-
-        player
+        }
     }
 
     pub fn draw(&mut self, rng: &mut impl Rng, count: usize) {
@@ -174,15 +170,14 @@ pub enum CardEffect {
 
 #[derive(Debug)]
 pub enum TurnPhase {
-    Action { actions_remaining: usize },
-    Buy { buys_remaining: usize },
+    Action,
+    Buy,
 }
 
 #[derive(Debug)]
 pub enum Event {
     EndPhase,
-    EndTurn,
-    PlayCard(CardKind),
+    PlayCard(HandIndex),
     BuyCard(PileIndex),
 }
 
@@ -194,6 +189,8 @@ pub struct Game<R> {
     pub turn: usize,
     pub current_phase: TurnPhase,
     pub current_player: PlayerIndex,
+    pub actions_remaining: usize,
+    pub buys_remaining: usize,
     pub winner: Option<PlayerIndex>,
 }
 
@@ -207,15 +204,15 @@ where
             piles,
             players,
             turn: 1,
-            current_phase: TurnPhase::Action {
-                actions_remaining: 1,
-            },
+            current_phase: TurnPhase::Action,
             current_player: 0,
+            actions_remaining: 1,
+            buys_remaining: 1,
             winner: None,
         }
     }
 
-    pub fn process_event(&mut self, event: Event) -> Option<PlayerIndex> {
+    pub fn process_event(&mut self, event: Event) {
         if self.winner.is_some() {
             panic!("Game is already over!");
         }
@@ -223,8 +220,8 @@ where
         match event {
             Event::EndPhase => {
                 self.current_phase = match self.current_phase {
-                    TurnPhase::Action { .. } => TurnPhase::Buy { buys_remaining: 1 },
-                    TurnPhase::Buy { .. } => {
+                    TurnPhase::Action => TurnPhase::Buy,
+                    TurnPhase::Buy => {
                         // End the turn.
                         self.turn += 1;
                         self.current_player += 1;
@@ -232,17 +229,51 @@ where
                             // End the round.
                             self.current_player = 0;
                         }
-                        TurnPhase::Action {
-                            actions_remaining: 1,
-                        }
+                        self.winner = self.winner();
+                        TurnPhase::Action
                     }
                 };
+            },
+            Event::PlayCard(hand_index) => {
+                let player = &mut self.players[self.current_player];
+                match player.play(hand_index) {
+                    Some(card) => {
+                        if card.is_action() {
+                            assert!(self.actions_remaining > 0, "No actions remaining!");
+                            self.actions_remaining -= 1;
+                        }
+
+                        println!("Player {} plays {:?}", self.current_player, card);
+
+                        match self.current_phase {
+                            TurnPhase::Action => {
+                                match card {
+                                    CardKind::Village => {
+                                        self.actions_remaining += 1;
+                                        player.draw(&mut self.rng, 1);
+                                    },
+                                    _ => {
+                                        unimplemented!();
+                                    }
+                                }
+                            },
+                            TurnPhase::Buy => {
+                                unimplemented!();
+                            },
+                        }
+                    },
+                    None => {
+                        panic!("Received an invalid hand index.");
+                    }
+                }
             }
             _ => {
                 unimplemented!();
             }
         }
+    }
 
+    fn winner(&self) -> Option<PlayerIndex> {
         // Check game end.
         let game_has_ended = {
             let empty_pile_count = self.piles.iter().filter(|&pile| pile.is_empty()).count();
@@ -258,15 +289,15 @@ where
         if game_has_ended {
             let points = self.players.iter().map(Player::points);
 
-            self.winner = Some(
+            Some(
                 points
                     .enumerate()
                     .max_by_key(|&(_, p): &(PlayerIndex, usize)| p)
                     .map(|(i, _)| i)
                     .expect("Game has no players!"),
-            );
+            )
+        } else {
+            None
         }
-
-        self.winner
     }
 }

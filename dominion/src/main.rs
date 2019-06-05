@@ -2,6 +2,7 @@
 pub mod dominion;
 
 use dominion::*;
+use rand::seq::SliceRandom;
 
 fn generate_first_game_piles(player_count: usize) -> Vec<Pile> {
     [
@@ -40,10 +41,17 @@ fn generate_deck() -> Vec<CardKind> {
 fn main() {
     let mut rng = rand::thread_rng();
 
-    let players = vec![
-        Player::new(&mut rng, generate_deck()),
-        Player::new(&mut rng, generate_deck()),
-    ];
+    // Is generate deck called once and then cloned? Awesome.
+    let mut players: Vec<Player> = std::iter::repeat(generate_deck())
+        .take(2)
+        .map(Player::new)
+        .collect();
+
+    // I don't feel comfortable putting this in the player constructor.
+    for player in players.iter_mut() {
+        player.draw.shuffle(&mut rng);
+        player.draw(&mut rng, 5);
+    }
 
     let mut game = Game::new(rng, generate_first_game_piles(players.len()), players);
 
@@ -54,4 +62,6 @@ fn main() {
     game.process_event(Event::EndPhase);
     assert_eq!(2, game.turn);
     assert_eq!(1, game.current_player);
+
+    print!("{:#?}", game);
 }
