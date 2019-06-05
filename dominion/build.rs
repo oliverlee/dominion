@@ -8,7 +8,9 @@ use std::io::{BufReader, BufWriter};
 use std::path::Path;
 use std::process::Command;
 
-fn main() -> Result<(), Box<std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("cargo:rerun-if-changed=../dominion.json");
+
     let mut missing_no: usize = 0;
 
     let Scrape { sets, types, cards } = serde_json::from_reader(BufReader::new(
