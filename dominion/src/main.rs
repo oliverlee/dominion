@@ -3,7 +3,6 @@
 mod dominion;
 
 use dominion::arena::Location;
-use dominion::arena::TurnPhase;
 use dominion::{Arena, CardKind, KingdomSet};
 
 fn main() {
@@ -63,9 +62,9 @@ fn big_money(arena: &mut Arena, player_id: usize) {
 
     play_all_treasures(arena, player_id);
 
-    arena.select_card(player_id, CardKind::Province, Location::Supply);
-    arena.select_card(player_id, CardKind::Gold, Location::Supply);
-    arena.select_card(player_id, CardKind::Silver, Location::Supply);
+    let _ = arena.select_card(player_id, CardKind::Province, Location::Supply);
+    let _ = arena.select_card(player_id, CardKind::Gold, Location::Supply);
+    let _ = arena.select_card(player_id, CardKind::Silver, Location::Supply);
 
     arena.end_buy_phase(player_id).unwrap();
 }
