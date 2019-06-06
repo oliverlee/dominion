@@ -21,7 +21,7 @@ pub type CardVec = Vec<CardKind>;
 pub struct Player {
     pub deck_pile: CardVec,
     pub hand: CardVec,
-    pub played: CardVec,
+    pub play_zone: CardVec,
     pub discard_pile: CardVec,
 }
 
@@ -33,7 +33,7 @@ impl Player {
         let mut p = Player {
             deck_pile,
             hand: CardVec::new(),
-            played: CardVec::new(),
+            play_zone: CardVec::new(),
             discard_pile: CardVec::new(),
         };
 
@@ -59,7 +59,7 @@ impl Player {
     }
 
     pub fn cleanup(&mut self) {
-        self.discard_pile.append(&mut self.played);
+        self.discard_pile.append(&mut self.play_zone);
         self.discard_pile.append(&mut self.hand);
 
         for _ in 0..5 {
@@ -71,7 +71,7 @@ impl Player {
         self.deck_pile
             .iter()
             .chain(self.hand.iter())
-            .chain(self.played.iter())
+            .chain(self.play_zone.iter())
             .chain(self.discard_pile.iter())
             .any(|&x| x == card)
     }
@@ -124,7 +124,7 @@ mod tests {
         for _ in 0..5 {
             p.deck_pile.push(CardKind::Copper);
         }
-        p.played.push(CardKind::Silver);
+        p.play_zone.push(CardKind::Silver);
         p.hand.push(CardKind::Gold);
 
         p.cleanup();

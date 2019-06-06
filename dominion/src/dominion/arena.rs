@@ -146,7 +146,7 @@ impl Arena {
                                     self.players[player_id].draw_card();
                                 }
 
-                                self.players[player_id].played.push(card);
+                                self.players[player_id].play_zone.push(card);
                                 Ok(())
                             }
                         }
@@ -167,7 +167,7 @@ impl Arena {
                     Some(card) => match card.treasure() {
                         Some(i) => {
                             *total_wealth += i;
-                            self.players[player_id].played.push(card);
+                            self.players[player_id].play_zone.push(card);
                             Ok(())
                         }
                         None => {
@@ -200,20 +200,20 @@ impl Arena {
         }
     }
 
-    pub fn check_hand(&self, player_id: usize) -> Result<&CardVec> {
-        Ok(&self.get_player(player_id)?.hand)
+    pub(crate) fn hand(&self, player_id: usize) -> Result<&CardVec> {
+        self.player(player_id).map(|player| &player.hand)
     }
 
-    pub fn check_discard_pile(&self, player_id: usize) -> Result<&CardVec> {
-        Ok(&self.get_player(player_id)?.discard_pile)
+    pub(crate) fn discard_pile(&self, player_id: usize) -> Result<&CardVec> {
+        self.player(player_id).map(|player| &player.discard_pile)
     }
 
-    pub fn check_played(&self, player_id: usize) -> Result<&CardVec> {
-        Ok(&self.get_player(player_id)?.played)
+    pub(crate) fn play_zone(&self, player_id: usize) -> Result<&CardVec> {
+        self.player(player_id).map(|player| &player.play_zone)
     }
 
-    pub fn check_deck(&self, player_id: usize, card: CardKind) -> Result<bool> {
-        Ok(self.get_player(player_id)?.in_deck(card))
+    pub(crate) fn in_deck(&self, player_id: usize, card: CardKind) -> Result<bool> {
+        self.player(player_id).map(|player| player.in_deck(card))
     }
 
     fn check_active(&mut self, player_id: usize) -> Result<()> {
@@ -232,12 +232,20 @@ impl Arena {
         }
     }
 
-    fn get_player(&self, player_id: usize) -> Result<&Player> {
+    fn player(&self, player_id: usize) -> Result<&Player> {
         if player_id >= self.players.len() {
             Err(Error::InvalidPlayerId)
         } else {
             Ok(&self.players[player_id])
         }
+    }
+
+    fn current_player(&self) -> &Player {
+        &self.players[self.turn.player_id]
+    }
+
+    fn current_player_mut(&mut self) -> &mut Player {
+        &mut self.players[self.turn.player_id]
     }
 }
 
@@ -259,23 +267,23 @@ mod tests {
     }
 
     #[test]
-    fn get_player_valid_index() {
+    fn player_valid_index() {
         let arena = Arena::new(KingdomSet::FirstGame, 2);
 
-        let r = arena.get_player(0);
+        let r = arena.player(0);
         assert!(r.is_ok());
         assert_eq!(r.unwrap() as *const _, &arena.players[0] as *const _);
 
-        let r = arena.get_player(1);
+        let r = arena.player(1);
         assert!(r.is_ok());
         assert_eq!(r.unwrap() as *const _, &arena.players[1] as *const _);
     }
 
     #[test]
-    fn get_player_invalid_index() {
+    fn player_invalid_index() {
         let arena = Arena::new(KingdomSet::FirstGame, 2);
 
-        let r = arena.get_player(2);
+        let r = arena.player(2);
         assert!(r.is_err());
         assert_eq!(r.unwrap_err(), Error::InvalidPlayerId);
     }
@@ -295,7 +303,7 @@ mod tests {
 
         assert!(r.is_ok());
         assert_eq!(
-            arena.get_player(0).unwrap().discard_pile,
+            arena.player(0).unwrap().discard_pile,
             vec![CardKind::Copper]
         );
         assert_eq!(
@@ -326,7 +334,7 @@ mod tests {
 
         assert!(r.is_ok());
         assert_eq!(
-            arena.get_player(0).unwrap().discard_pile,
+            arena.player(0).unwrap().discard_pile,
             vec![CardKind::Market]
         );
         assert_eq!(
@@ -355,7 +363,7 @@ mod tests {
 
         assert!(r.is_err());
         assert_eq!(r.unwrap_err(), Error::NoMoreBuys);
-        assert!(arena.get_player(0).unwrap().discard_pile.is_empty());
+        assert!(arena.player(0).unwrap().discard_pile.is_empty());
     }
 
     #[test]
@@ -371,7 +379,7 @@ mod tests {
 
         assert!(r.is_err());
         assert_eq!(r.unwrap_err(), Error::NotEnoughWealth);
-        assert!(arena.get_player(0).unwrap().discard_pile.is_empty());
+        assert!(arena.player(0).unwrap().discard_pile.is_empty());
     }
 
     #[test]
@@ -387,7 +395,7 @@ mod tests {
 
         assert!(r.is_err());
         assert_eq!(r.unwrap_err(), Error::InvalidCardChoice);
-        assert!(arena.get_player(0).unwrap().discard_pile.is_empty());
+        assert!(arena.player(0).unwrap().discard_pile.is_empty());
     }
 
     #[test]
@@ -423,7 +431,7 @@ mod tests {
 
         assert!(r.is_err());
         assert_eq!(r.unwrap_err(), Error::InactivePlayer);
-        assert_eq!(arena.get_player(1).unwrap().hand.len(), 1);
+        assert_eq!(arena.player(1).unwrap().hand.len(), 1);
     }
 
     #[test]
@@ -441,7 +449,7 @@ mod tests {
         let r = arena.select_card(0, CardKind::Smithy, Location::Hand);
 
         assert!(r.is_ok());
-        assert_eq!(arena.get_player(0).unwrap().hand.len(), 3);
+        assert_eq!(arena.player(0).unwrap().hand.len(), 3);
         assert_eq!(
             arena.turn.phase,
             TurnPhase::Action {
@@ -467,7 +475,7 @@ mod tests {
 
         assert!(r.is_err());
         assert_eq!(r.unwrap_err(), Error::InvalidCardChoice);
-        assert_eq!(arena.get_player(0).unwrap().hand.len(), 1);
+        assert_eq!(arena.player(0).unwrap().hand.len(), 1);
     }
 
     #[test]
@@ -486,7 +494,7 @@ mod tests {
 
         assert!(r.is_err());
         assert_eq!(r.unwrap_err(), Error::InvalidCardChoice);
-        assert_eq!(arena.get_player(0).unwrap().hand.len(), 1);
+        assert_eq!(arena.player(0).unwrap().hand.len(), 1);
     }
 
     #[test]
@@ -503,7 +511,7 @@ mod tests {
         let r = arena.select_card(0, CardKind::Gold, Location::Hand);
 
         assert!(r.is_ok());
-        assert_eq!(arena.get_player(0).unwrap().hand.len(), 0);
+        assert_eq!(arena.player(0).unwrap().hand.len(), 0);
         assert_eq!(
             arena.turn.phase,
             TurnPhase::Buy {

@@ -9,11 +9,8 @@ fn main() {
     let mut arena = Arena::new(KingdomSet::FirstGame, 2);
     println!("supply {:#?}", arena.supply());
 
-    println!("p1 hand: {:?}", arena.check_hand(0).unwrap());
-    println!(
-        "p1 discard pile: {:?}",
-        arena.check_discard_pile(0).unwrap()
-    );
+    println!("p1 hand: {:?}", arena.hand(0).unwrap());
+    println!("p1 discard pile: {:?}", arena.discard_pile(0).unwrap());
     println!("");
 
     println!("p1 playing big money strat");
@@ -27,11 +24,8 @@ fn main() {
         skip_turn(&mut arena, 1);
 
         println!("turn {}", turn_number);
-        println!("p1 hand: {:?}", arena.check_hand(0).unwrap());
-        println!(
-            "p1 discard pile: {:?}",
-            arena.check_discard_pile(0).unwrap()
-        );
+        println!("p1 hand: {:?}", arena.hand(0).unwrap());
+        println!("p1 discard pile: {:?}", arena.discard_pile(0).unwrap());
         println!("");
     }
 
@@ -46,7 +40,7 @@ fn skip_turn(arena: &mut Arena, player_id: usize) {
 fn play_all_treasures(arena: &mut Arena, player_id: usize) {
     for &card in [CardKind::Gold, CardKind::Silver, CardKind::Copper].iter() {
         while arena
-            .check_hand(player_id)
+            .hand(player_id)
             .unwrap()
             .iter()
             .find(|&&x| x == card)
