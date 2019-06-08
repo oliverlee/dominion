@@ -2,7 +2,7 @@
 
 mod dominion;
 
-use dominion::arena::TurnPhase;
+use dominion::turn_phase::TurnPhase;
 use dominion::{Arena, CardKind, KingdomSet};
 
 fn main() {
@@ -24,9 +24,11 @@ fn main() {
         skip_turn(&mut arena, 1);
 
         println!("turn {}", turn_number);
-        println!("p1 hand: {:?}", arena.hand(0).unwrap());
         println!("p1 discard pile: {:?}", arena.discard_pile(0).unwrap());
+        println!("p1 hand: {:?}", arena.hand(0).unwrap());
         println!("");
+
+        assert!(turn_number <= 50);
     }
 
     println!("arena: {:#?}", arena);
@@ -55,6 +57,11 @@ fn big_money(arena: &mut Arena, player_id: usize) {
     arena.end_action_phase(player_id).unwrap();
 
     play_all_treasures(arena, player_id);
+    println!(
+        "p{} playing: {:?}",
+        player_id,
+        arena.play_zone(player_id).unwrap()
+    );
 
     arena
         .buy_card(player_id, CardKind::Province)
@@ -62,14 +69,11 @@ fn big_money(arena: &mut Arena, player_id: usize) {
         .map_err(|_| arena.buy_card(player_id, CardKind::Silver))
         .or_else(|_| -> Result<(), ()> {
             match arena.turn_phase() {
-                TurnPhase::Action { .. } => {
+                TurnPhase::Action(_) => {
                     panic!("Expected TurnPhase::Buy but got TurnPhase::Action.")
                 }
-                TurnPhase::Buy {
-                    remaining_buys,
-                    total_wealth,
-                } => {
-                    assert!(total_wealth < CardKind::Silver.cost());
+                TurnPhase::Buy(buy_phase) => {
+                    assert!(buy_phase.remaining_copper < CardKind::Silver.cost());
                     Ok(())
                 }
             }

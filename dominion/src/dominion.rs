@@ -11,3 +11,8 @@ pub(crate) mod player;
 
 pub mod supply;
 pub use self::supply::Supply;
+
+pub mod turn_phase;
+
+pub mod types;
+pub use self::types::{Error, Result};
