@@ -7,8 +7,7 @@ pub use self::card::CardKind;
 pub mod kingdom;
 pub use self::kingdom::KingdomSet;
 
-pub mod player;
-pub use self::player::Player;
+pub(crate) mod player;
 
 pub mod supply;
 pub use self::supply::Supply;

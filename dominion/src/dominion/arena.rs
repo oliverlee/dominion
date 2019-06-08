@@ -19,7 +19,7 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TurnPhase {
     Action {
         remaining_actions: i32,
@@ -79,6 +79,10 @@ impl Arena {
         &self.supply
     }
 
+    pub fn turn_phase(&self) -> TurnPhase {
+        self.turn.phase.clone()
+    }
+
     pub fn end_action_phase(&mut self, player_id: usize) -> Result<()> {
         self.check_active(player_id)?;
 
@@ -115,88 +119,101 @@ impl Arena {
         }
     }
 
-    // This function is context dependent
-    pub fn select_card(
-        &mut self,
-        player_id: usize,
-        card: CardKind,
-        location: Location,
-    ) -> Result<()> {
+    pub fn play_action(&mut self, player_id: usize, card: CardKind) -> Result<()> {
         self.check_active(player_id)?;
+
+        let card_index = self.players[player_id]
+            .hand
+            .iter()
+            .position(|&x| x == card)
+            .ok_or_else(|| Error::InvalidCardChoice)?;
 
         match &mut self.turn.phase {
             TurnPhase::Action {
                 remaining_actions,
                 remaining_buys,
                 total_wealth,
-            } => match location {
-                Location::Hand => match self.players[player_id].hand.remove_item(&card) {
-                    Some(card) => match card.action() {
-                        Some(e) => {
-                            if *remaining_actions == 0 {
-                                self.players[player_id].hand.push(card);
-                                Err(Error::NoMoreActions)
-                            } else {
-                                *remaining_actions -= 1;
-                                *remaining_actions += e.action;
-                                *remaining_buys += e.buy;
-                                *total_wealth += e.worth;
+            } => {
+                if *remaining_actions == 0 {
+                    Err(Error::NoMoreActions)
+                } else {
+                    *remaining_actions -= 1;
 
-                                for _ in 0..e.card {
-                                    self.players[player_id].draw_card();
-                                }
+                    let player = &mut self.players[player_id];
+                    let card = player.hand.remove(card_index);
+                    player.play_zone.push(card);
 
-                                self.players[player_id].play_zone.push(card);
-                                Ok(())
-                            }
-                        }
-                        None => {
-                            self.players[player_id].hand.push(card);
-                            Err(Error::InvalidCardChoice)
-                        }
-                    },
-                    None => Err(Error::InvalidCardChoice),
-                },
-                _ => Err(Error::InvalidCardLocation),
-            },
+                    let gains = card.action().ok_or_else(|| Error::InvalidCardChoice)?;
+                    *remaining_actions += gains.action;
+                    *remaining_buys += gains.buy;
+                    *total_wealth += gains.worth;
+
+                    for _ in 0..gains.card {
+                        self.players[player_id].draw_card();
+                    }
+
+                    Ok(())
+                }
+            }
+            TurnPhase::Buy { .. } => Err(Error::WrongTurnPhase),
+        }
+    }
+
+    pub fn play_treasure(&mut self, player_id: usize, card: CardKind) -> Result<()> {
+        self.check_active(player_id)?;
+
+        let card_index = self.players[player_id]
+            .hand
+            .iter()
+            .position(|&x| x == card)
+            .ok_or_else(|| Error::InvalidCardChoice)?;
+
+
+        match &mut self.turn.phase {
+            TurnPhase::Action { .. } => Err(Error::WrongTurnPhase),
             TurnPhase::Buy {
                 remaining_buys,
                 total_wealth,
-            } => match location {
-                Location::Hand => match self.players[player_id].hand.remove_item(&card) {
-                    Some(card) => match card.treasure() {
-                        Some(i) => {
-                            *total_wealth += i;
-                            self.players[player_id].play_zone.push(card);
-                            Ok(())
-                        }
-                        None => {
-                            self.players[player_id].hand.push(card);
-                            Err(Error::InvalidCardChoice)
-                        }
-                    },
-                    None => Err(Error::InvalidCardChoice),
-                },
-                Location::Supply => match self.supply.get_mut(card) {
-                    Some(supply_count) => {
-                        if *supply_count == 0 {
-                            Err(Error::NoMoreCards)
-                        } else if *remaining_buys == 0 {
-                            Err(Error::NoMoreBuys)
-                        } else if *total_wealth < card.cost() {
-                            Err(Error::NotEnoughWealth)
-                        } else {
-                            *supply_count -= 1;
-                            *remaining_buys -= 1;
-                            *total_wealth -= card.cost();
-                            self.players[player_id].discard_pile.push(card);
-                            Ok(())
-                        }
-                    }
-                    None => Err(Error::InvalidCardChoice),
-                },
-                _ => Err(Error::InvalidCardLocation),
-            },
+            } => {
+                let player = &mut self.players[player_id];
+                let card = player.hand.remove(card_index);
+                player.play_zone.push(card);
+
+                *total_wealth += card.treasure().ok_or_else(|| Error::InvalidCardChoice)?;
+
+                Ok(())
+            }
+        }
+    }
+
+    pub fn buy_card(&mut self, player_id: usize, card: CardKind) -> Result<()> {
+        self.check_active(player_id)?;
+
+        let mut supply_count = self
+            .supply
+            .get_mut(card)
+            .ok_or_else(|| Error::InvalidCardChoice)?;
+
+        match &mut self.turn.phase {
+            TurnPhase::Action { .. } => Err(Error::WrongTurnPhase),
+            TurnPhase::Buy {
+                remaining_buys,
+                total_wealth,
+            } => {
+                if *supply_count == 0 {
+                    Err(Error::NoMoreCards)
+                } else if *remaining_buys == 0 {
+                    Err(Error::NoMoreBuys)
+                } else if *total_wealth < card.cost() {
+                    Err(Error::NotEnoughWealth)
+                } else {
+                    *remaining_buys -= 1;
+                    *total_wealth -= card.cost();
+                    *supply_count -= 1;
+                    self.players[player_id].discard_pile.push(card);
+                    Ok(())
+                }
+            }
         }
     }
 
@@ -299,7 +316,7 @@ mod tests {
 
         let copper_supply = arena.supply.get_mut(CardKind::Copper).unwrap().to_owned();
 
-        let r = arena.select_card(0, CardKind::Copper, Location::Supply);
+        let r = arena.buy_card(0, CardKind::Copper);
 
         assert!(r.is_ok());
         assert_eq!(
@@ -330,7 +347,7 @@ mod tests {
 
         let market_supply = arena.supply.get_mut(CardKind::Market).unwrap().to_owned();
 
-        let r = arena.select_card(0, CardKind::Market, Location::Supply);
+        let r = arena.buy_card(0, CardKind::Market);
 
         assert!(r.is_ok());
         assert_eq!(
@@ -359,7 +376,7 @@ mod tests {
             total_wealth: 100,
         };
 
-        let r = arena.select_card(0, CardKind::Gold, Location::Supply);
+        let r = arena.buy_card(0, CardKind::Gold);
 
         assert!(r.is_err());
         assert_eq!(r.unwrap_err(), Error::NoMoreBuys);
@@ -375,7 +392,7 @@ mod tests {
             total_wealth: 0,
         };
 
-        let r = arena.select_card(0, CardKind::Gold, Location::Supply);
+        let r = arena.buy_card(0, CardKind::Gold);
 
         assert!(r.is_err());
         assert_eq!(r.unwrap_err(), Error::NotEnoughWealth);
@@ -391,7 +408,7 @@ mod tests {
             total_wealth: 100,
         };
 
-        let r = arena.select_card(0, CardKind::Witch, Location::Supply);
+        let r = arena.buy_card(0, CardKind::Witch);
 
         assert!(r.is_err());
         assert_eq!(r.unwrap_err(), Error::InvalidCardChoice);
@@ -399,7 +416,7 @@ mod tests {
     }
 
     #[test]
-    fn play_card_not_in_hand() {
+    fn play_action_not_in_hand() {
         let mut arena = Arena::new(KingdomSet::FirstGame, 2);
 
         arena.turn.phase = TurnPhase::Action {
@@ -408,14 +425,14 @@ mod tests {
             total_wealth: 0,
         };
 
-        let r = arena.select_card(0, CardKind::Copper, Location::Hand);
+        let r = arena.play_action(0, CardKind::Market);
 
         assert!(r.is_err());
         assert_eq!(r.unwrap_err(), Error::InvalidCardChoice);
     }
 
     #[test]
-    fn play_card_out_of_turn() {
+    fn play_action_out_of_turn() {
         let mut arena = Arena::new(KingdomSet::FirstGame, 2);
 
         arena.turn.phase = TurnPhase::Buy {
@@ -426,8 +443,8 @@ mod tests {
         assert_eq!(arena.turn.player_id, 0);
 
         arena.players[1].hand.clear();
-        arena.players[1].hand.push(CardKind::Gold);
-        let r = arena.select_card(1, CardKind::Gold, Location::Hand);
+        arena.players[1].hand.push(CardKind::Moat);
+        let r = arena.play_action(1, CardKind::Moat);
 
         assert!(r.is_err());
         assert_eq!(r.unwrap_err(), Error::InactivePlayer);
@@ -435,7 +452,7 @@ mod tests {
     }
 
     #[test]
-    fn play_card_smithy_during_action_phase() {
+    fn play_action_smithy_during_action_phase() {
         let mut arena = Arena::new(KingdomSet::FirstGame, 2);
 
         arena.turn.phase = TurnPhase::Action {
@@ -446,7 +463,7 @@ mod tests {
 
         arena.players[0].hand.clear();
         arena.players[0].hand.push(CardKind::Smithy);
-        let r = arena.select_card(0, CardKind::Smithy, Location::Hand);
+        let r = arena.play_action(0, CardKind::Smithy);
 
         assert!(r.is_ok());
         assert_eq!(arena.player(0).unwrap().hand.len(), 3);
@@ -461,7 +478,7 @@ mod tests {
     }
 
     #[test]
-    fn play_card_smithy_during_buy_phase() {
+    fn play_action_smithy_during_buy_phase() {
         let mut arena = Arena::new(KingdomSet::FirstGame, 2);
 
         arena.turn.phase = TurnPhase::Buy {
@@ -471,15 +488,15 @@ mod tests {
 
         arena.players[0].hand.clear();
         arena.players[0].hand.push(CardKind::Smithy);
-        let r = arena.select_card(0, CardKind::Smithy, Location::Hand);
+        let r = arena.play_action(0, CardKind::Smithy);
 
         assert!(r.is_err());
-        assert_eq!(r.unwrap_err(), Error::InvalidCardChoice);
+        assert_eq!(r.unwrap_err(), Error::WrongTurnPhase);
         assert_eq!(arena.player(0).unwrap().hand.len(), 1);
     }
 
     #[test]
-    fn play_card_gold_during_action_phase() {
+    fn play_treasure_gold_during_action_phase() {
         let mut arena = Arena::new(KingdomSet::FirstGame, 2);
 
         arena.turn.phase = TurnPhase::Action {
@@ -490,15 +507,15 @@ mod tests {
 
         arena.players[0].hand.clear();
         arena.players[0].hand.push(CardKind::Gold);
-        let r = arena.select_card(0, CardKind::Gold, Location::Hand);
+        let r = arena.play_treasure(0, CardKind::Gold);
 
         assert!(r.is_err());
-        assert_eq!(r.unwrap_err(), Error::InvalidCardChoice);
+        assert_eq!(r.unwrap_err(), Error::WrongTurnPhase);
         assert_eq!(arena.player(0).unwrap().hand.len(), 1);
     }
 
     #[test]
-    fn play_card_gold_during_buy_phase() {
+    fn play_treasuse_gold_during_buy_phase() {
         let mut arena = Arena::new(KingdomSet::FirstGame, 2);
 
         arena.turn.phase = TurnPhase::Buy {
@@ -508,7 +525,7 @@ mod tests {
 
         arena.players[0].hand.clear();
         arena.players[0].hand.push(CardKind::Gold);
-        let r = arena.select_card(0, CardKind::Gold, Location::Hand);
+        let r = arena.play_treasure(0, CardKind::Gold);
 
         assert!(r.is_ok());
         assert_eq!(arena.player(0).unwrap().hand.len(), 0);

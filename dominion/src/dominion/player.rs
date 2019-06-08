@@ -18,15 +18,15 @@ unsafe fn rng() -> &'static mut StdRng {
 pub type CardVec = Vec<CardKind>;
 
 #[derive(Debug)]
-pub struct Player {
-    pub deck_pile: CardVec,
-    pub hand: CardVec,
-    pub play_zone: CardVec,
-    pub discard_pile: CardVec,
+pub(crate) struct Player {
+    pub(crate) deck_pile: CardVec,
+    pub(crate) hand: CardVec,
+    pub(crate) play_zone: CardVec,
+    pub(crate) discard_pile: CardVec,
 }
 
 impl Player {
-    pub fn new() -> Player {
+    pub(crate) fn new() -> Player {
         let mut deck_pile = vec![CardKind::Copper; 7];
         deck_pile.append(&mut vec![CardKind::Estate; 3]);
 
@@ -42,13 +42,7 @@ impl Player {
         p
     }
 
-    fn shuffle_deck(&mut self) {
-        unsafe {
-            self.deck_pile.shuffle(rng());
-        }
-    }
-
-    pub fn draw_card(&mut self) {
+    pub(crate) fn draw_card(&mut self) {
         if self.deck_pile.is_empty() {
             self.deck_pile.append(&mut self.discard_pile);
             self.shuffle_deck();
@@ -58,7 +52,7 @@ impl Player {
         self.hand.push(self.deck_pile.remove(0));
     }
 
-    pub fn cleanup(&mut self) {
+    pub(crate) fn cleanup(&mut self) {
         self.discard_pile.append(&mut self.play_zone);
         self.discard_pile.append(&mut self.hand);
 
@@ -67,13 +61,19 @@ impl Player {
         }
     }
 
-    pub fn in_deck(&self, card: CardKind) -> bool {
+    pub(crate) fn in_deck(&self, card: CardKind) -> bool {
         self.deck_pile
             .iter()
             .chain(self.hand.iter())
             .chain(self.play_zone.iter())
             .chain(self.discard_pile.iter())
             .any(|&x| x == card)
+    }
+
+    fn shuffle_deck(&mut self) {
+        unsafe {
+            self.deck_pile.shuffle(rng());
+        }
     }
 }
 

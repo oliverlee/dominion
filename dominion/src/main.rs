@@ -2,7 +2,7 @@
 
 mod dominion;
 
-use dominion::arena::Location;
+use dominion::arena::TurnPhase;
 use dominion::{Arena, CardKind, KingdomSet};
 
 fn main() {
@@ -46,7 +46,7 @@ fn play_all_treasures(arena: &mut Arena, player_id: usize) {
             .find(|&&x| x == card)
             .is_some()
         {
-            arena.select_card(player_id, card, Location::Hand).unwrap();
+            arena.play_treasure(player_id, card).unwrap();
         }
     }
 }
@@ -56,9 +56,25 @@ fn big_money(arena: &mut Arena, player_id: usize) {
 
     play_all_treasures(arena, player_id);
 
-    let _ = arena.select_card(player_id, CardKind::Province, Location::Supply);
-    let _ = arena.select_card(player_id, CardKind::Gold, Location::Supply);
-    let _ = arena.select_card(player_id, CardKind::Silver, Location::Supply);
+    arena
+        .buy_card(player_id, CardKind::Province)
+        .map_err(|_| arena.buy_card(player_id, CardKind::Gold))
+        .map_err(|_| arena.buy_card(player_id, CardKind::Silver))
+        .or_else(|_| -> Result<(), ()> {
+            match arena.turn_phase() {
+                TurnPhase::Action { .. } => {
+                    panic!("Expected TurnPhase::Buy but got TurnPhase::Action.")
+                }
+                TurnPhase::Buy {
+                    remaining_buys,
+                    total_wealth,
+                } => {
+                    assert!(total_wealth < CardKind::Silver.cost());
+                    Ok(())
+                }
+            }
+        })
+        .unwrap();
 
     arena.end_buy_phase(player_id).unwrap();
 }
