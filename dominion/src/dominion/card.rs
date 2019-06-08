@@ -97,10 +97,10 @@ impl CardKind {
                 copper: 0,
             }),
             CardKind::Militia => Some(&CardResources {
-                cards: 3,
+                cards: 0,
                 actions: 0,
                 buys: 0,
-                copper: 0,
+                copper: 2,
             }),
             CardKind::Market => Some(&CardResources {
                 cards: 1,

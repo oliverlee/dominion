@@ -1,25 +1,9 @@
-use crate::dominion::player::{CardVec, Player};
+use crate::dominion::player::Player;
 use crate::dominion::turn_phase::{ActionPhase, BuyPhase, TurnPhase};
-use crate::dominion::types::{Error, Result};
+use crate::dominion::types::{CardSpecifier, CardVec, Error, Location, Result};
 use crate::dominion::CardKind;
 use crate::dominion::KingdomSet;
 use crate::dominion::Supply;
-
-pub enum Location {
-    Draw { player_id: usize },
-    Discard { player_id: usize },
-    Hand { player_id: usize },
-    Play { player_id: usize },
-    Stage { player_id: usize },
-    Supply,
-    Trash,
-}
-
-enum CardSpecifier {
-    Top,
-    Index(usize),
-    Card(CardKind),
-}
 
 const STARTING_TURNPHASE: TurnPhase = TurnPhase::Action(ActionPhase {
     remaining_actions: 1,
@@ -28,16 +12,16 @@ const STARTING_TURNPHASE: TurnPhase = TurnPhase::Action(ActionPhase {
 });
 
 #[derive(Debug)]
-struct Turn {
-    player_id: usize,
-    phase: TurnPhase,
+pub(crate) struct Turn {
+    pub(crate) player_id: usize,
+    pub(crate) phase: TurnPhase,
 }
 
 #[derive(Debug)]
 pub struct Arena {
     supply: Supply,
-    players: Vec<Player>,
-    turn: Turn,
+    pub(crate) players: Vec<Player>,
+    pub(crate) turn: Turn,
     trash: CardVec,
 }
 
@@ -77,7 +61,7 @@ impl Arena {
 
         self.players[player_id].cleanup();
 
-        self.turn.player_id = (player_id + 1) % self.players.len();
+        self.turn.player_id = self.next_player_id();
         self.turn.phase = self
             .turn
             .phase
@@ -148,7 +132,7 @@ impl Arena {
 
         let buy_phase = self.turn.phase.as_buy_phase_mut()?;
 
-        let mut supply_count = self
+        let supply_count = self
             .supply
             .get_mut(card)
             .ok_or_else(|| Error::InvalidCardChoice)?;
@@ -198,7 +182,12 @@ impl Arena {
         }
     }
 
-    fn move_card(&mut self, origin: Location, destination: Location, card: CardSpecifier) {
+    pub(crate) fn move_card(
+        &mut self,
+        origin: Location,
+        destination: Location,
+        card: CardSpecifier,
+    ) {
         let card = match card {
             CardSpecifier::Top => match origin {
                 Location::Supply => {
@@ -258,12 +247,16 @@ impl Arena {
         }
     }
 
-    fn current_player(&self) -> &Player {
+    pub(crate) fn current_player(&self) -> &Player {
         &self.players[self.turn.player_id]
     }
 
-    fn current_player_mut(&mut self) -> &mut Player {
+    pub(crate) fn current_player_mut(&mut self) -> &mut Player {
         &mut self.players[self.turn.player_id]
+    }
+
+    pub(crate) fn next_player_id(&self) -> usize {
+        (self.turn.player_id + 1) % self.players.len()
     }
 }
 

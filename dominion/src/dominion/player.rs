@@ -1,5 +1,6 @@
 extern crate rand;
 
+use crate::dominion::types::CardVec;
 use crate::dominion::CardKind;
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
@@ -14,8 +15,6 @@ unsafe fn rng() -> &'static mut StdRng {
 
     RNG.as_mut().unwrap()
 }
-
-pub type CardVec = Vec<CardKind>;
 
 #[derive(Debug)]
 pub(crate) struct Player {
