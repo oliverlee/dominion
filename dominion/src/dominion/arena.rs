@@ -6,11 +6,19 @@ use crate::dominion::KingdomSet;
 use crate::dominion::Supply;
 
 pub enum Location {
-    Discard,
-    Hand,
-    Stage,
+    Draw { player_id: usize },
+    Discard { player_id: usize },
+    Hand { player_id: usize },
+    Play { player_id: usize },
+    Stage { player_id: usize },
     Supply,
     Trash,
+}
+
+enum CardSpecifier {
+    Top,
+    Index(usize),
+    Card(CardKind),
 }
 
 const STARTING_TURNPHASE: TurnPhase = TurnPhase::Action(ActionPhase {
@@ -30,6 +38,7 @@ pub struct Arena {
     supply: Supply,
     players: Vec<Player>,
     turn: Turn,
+    trash: CardVec,
 }
 
 impl Arena {
@@ -41,6 +50,7 @@ impl Arena {
                 player_id: 0,
                 phase: STARTING_TURNPHASE,
             },
+            trash: CardVec::new(),
         };
 
         arena.start_game();
@@ -176,6 +186,54 @@ impl Arena {
         self.player(player_id).map(|player| player.in_deck(card))
     }
 
+    fn location(&mut self, loc: Location) -> &mut CardVec {
+        match loc {
+            Location::Draw { player_id } => &mut self.players[player_id].draw_pile,
+            Location::Discard { player_id } => &mut self.players[player_id].discard_pile,
+            Location::Hand { player_id } => &mut self.players[player_id].hand,
+            Location::Play { player_id } => &mut self.players[player_id].play_zone,
+            Location::Stage { player_id } => &mut self.players[player_id].stage,
+            Location::Supply => panic!("Cannot return Location::Supply as a '&mut CardVec'"),
+            Location::Trash => &mut self.trash,
+        }
+    }
+
+    fn move_card(&mut self, origin: Location, destination: Location, card: CardSpecifier) {
+        let card = match card {
+            CardSpecifier::Top => match origin {
+                Location::Supply => {
+                    panic!("Cannot use CardSpecifier::Top with origin Location::Supply.")
+                }
+                _ => self.location(origin).pop().unwrap(),
+            },
+            CardSpecifier::Index(i) => match origin {
+                Location::Supply => {
+                    panic!("Cannot use CardSpecifier::Index with origin Location::Supply.")
+                }
+                _ => self.location(origin).remove(i),
+            },
+            CardSpecifier::Card(c) => match origin {
+                Location::Supply => {
+                    let card_supply = self.supply.get_mut(c).unwrap();
+
+                    if *card_supply == 0 {
+                        panic!("Cannot move card from an empty supply pile.");
+                    } else {
+                        *card_supply -= 1;
+                    }
+
+                    c
+                }
+                _ => self.location(origin).remove_item(&c).unwrap(),
+            },
+        };
+
+        match destination {
+            Location::Supply => panic!("Cannot move card to destination Location::Supply."),
+            _ => self.location(destination).push(card),
+        };
+    }
+
     fn check_active(&mut self, player_id: usize) -> Result<()> {
         if player_id >= self.players.len() {
             Err(Error::InvalidPlayerId)
@@ -289,7 +347,7 @@ mod tests {
 
         assert_eq!(arena.player(0).unwrap().hand.len(), 5);
         assert_eq!(arena.player(0).unwrap().discard_pile.len(), 5);
-        assert_eq!(arena.player(0).unwrap().deck_pile.len(), 0);
+        assert_eq!(arena.player(0).unwrap().draw_pile.len(), 0);
     }
 
     #[test]

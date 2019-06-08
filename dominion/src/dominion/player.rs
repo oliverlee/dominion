@@ -19,21 +19,23 @@ pub type CardVec = Vec<CardKind>;
 
 #[derive(Debug)]
 pub(crate) struct Player {
-    pub(crate) deck_pile: CardVec,
+    pub(crate) draw_pile: CardVec,
     pub(crate) hand: CardVec,
     pub(crate) play_zone: CardVec,
+    pub(crate) stage: CardVec,
     pub(crate) discard_pile: CardVec,
 }
 
 impl Player {
     pub(crate) fn new() -> Player {
-        let mut deck_pile = vec![CardKind::Copper; 7];
-        deck_pile.append(&mut vec![CardKind::Estate; 3]);
+        let mut draw_pile = vec![CardKind::Copper; 7];
+        draw_pile.append(&mut vec![CardKind::Estate; 3]);
 
         let mut p = Player {
-            deck_pile,
+            draw_pile,
             hand: CardVec::new(),
             play_zone: CardVec::new(),
+            stage: CardVec::new(),
             discard_pile: CardVec::new(),
         };
 
@@ -43,13 +45,13 @@ impl Player {
     }
 
     pub(crate) fn draw_card(&mut self) {
-        if self.deck_pile.is_empty() {
-            self.deck_pile.append(&mut self.discard_pile);
+        if self.draw_pile.is_empty() {
+            self.draw_pile.append(&mut self.discard_pile);
             self.shuffle_deck();
         }
 
         // TODO handle empty deck
-        self.hand.push(self.deck_pile.remove(0));
+        self.hand.push(self.draw_pile.remove(0));
     }
 
     pub(crate) fn cleanup(&mut self) {
@@ -62,7 +64,7 @@ impl Player {
     }
 
     pub(crate) fn in_deck(&self, card: CardKind) -> bool {
-        self.deck_pile
+        self.draw_pile
             .iter()
             .chain(self.hand.iter())
             .chain(self.play_zone.iter())
@@ -72,7 +74,7 @@ impl Player {
 
     fn shuffle_deck(&mut self) {
         unsafe {
-            self.deck_pile.shuffle(rng());
+            self.draw_pile.shuffle(rng());
         }
     }
 }
@@ -85,15 +87,15 @@ mod tests {
     fn test_draw_card_no_shuffle() {
         let mut p = Player::new();
 
-        p.deck_pile.clear();
-        assert!(p.deck_pile.is_empty());
+        p.draw_pile.clear();
+        assert!(p.draw_pile.is_empty());
 
-        p.deck_pile.push(CardKind::Copper);
-        p.deck_pile.push(CardKind::Silver);
+        p.draw_pile.push(CardKind::Copper);
+        p.draw_pile.push(CardKind::Silver);
 
         p.draw_card();
 
-        assert_eq!(p.deck_pile, vec![CardKind::Silver]);
+        assert_eq!(p.draw_pile, vec![CardKind::Silver]);
         assert_eq!(p.hand, vec![CardKind::Copper]);
     }
 
@@ -101,8 +103,8 @@ mod tests {
     fn test_draw_card_shuffle() {
         let mut p = Player::new();
 
-        p.deck_pile.clear();
-        assert!(p.deck_pile.is_empty());
+        p.draw_pile.clear();
+        assert!(p.draw_pile.is_empty());
 
         for _ in 0..5 {
             p.discard_pile.push(CardKind::Copper);
@@ -110,7 +112,7 @@ mod tests {
 
         p.draw_card();
 
-        assert_eq!(p.deck_pile, vec![CardKind::Copper; 4]);
+        assert_eq!(p.draw_pile, vec![CardKind::Copper; 4]);
         assert_eq!(p.hand, vec![CardKind::Copper]);
     }
 
@@ -118,11 +120,11 @@ mod tests {
     fn test_cleanup() {
         let mut p = Player::new();
 
-        p.deck_pile.clear();
-        assert!(p.deck_pile.is_empty());
+        p.draw_pile.clear();
+        assert!(p.draw_pile.is_empty());
 
         for _ in 0..5 {
-            p.deck_pile.push(CardKind::Copper);
+            p.draw_pile.push(CardKind::Copper);
         }
         p.play_zone.push(CardKind::Silver);
         p.hand.push(CardKind::Gold);
@@ -141,7 +143,7 @@ mod tests {
             .is_some());
         assert_eq!(p.discard_pile.len(), 2);
         assert_eq!(p.hand, vec![CardKind::Copper; 5]);
-        assert!(p.deck_pile.is_empty());
+        assert!(p.draw_pile.is_empty());
     }
 
     #[test]
