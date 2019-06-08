@@ -1,4 +1,4 @@
-#[derive(Debug, Eq, Hash, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 pub enum CardKind {
     Copper,
     Silver,
@@ -17,6 +17,7 @@ pub enum CardKind {
     Militia,
     Market,
     Mine,
+    Witch,
 }
 
 impl CardKind {
@@ -39,6 +40,7 @@ impl CardKind {
             CardKind::Militia => 4,
             CardKind::Market => 5,
             CardKind::Mine => 5,
+            CardKind::Witch => 5,
         }
     }
 
@@ -105,6 +107,12 @@ impl CardKind {
                 action: 1,
                 buy: 1,
                 worth: 1,
+            }),
+            CardKind::Witch => Some(&CardEffect {
+                card: 2,
+                action: 0,
+                buy: 0,
+                worth: 0,
             }),
             _ => None,
         }
