@@ -53,14 +53,14 @@ impl Arena {
         self.turn.phase.clone()
     }
 
-    pub fn end_action_phase(&mut self, player_id: usize) -> Result<()> {
-        self.check_active(player_id)?;
+    pub fn end_action_phase(&mut self) -> Result<()> {
+        let _ = self.current_player_id_can_mut()?;
         self.turn.phase = TurnPhase::Buy(self.turn.phase.as_action_phase_mut()?.as_buy_phase());
         Ok(())
     }
 
-    pub fn end_buy_phase(&mut self, player_id: usize) -> Result<()> {
-        self.check_active(player_id)?;
+    pub fn end_buy_phase(&mut self) -> Result<()> {
+        let player_id = self.current_player_id_can_mut()?;
 
         self.players[player_id].cleanup();
 
@@ -74,8 +74,8 @@ impl Arena {
         Ok(())
     }
 
-    pub fn play_action(&mut self, player_id: usize, card: CardKind) -> Result<()> {
-        self.check_active(player_id)?;
+    pub fn play_action(&mut self, card: CardKind) -> Result<()> {
+        let player_id = self.current_player_id_can_mut()?;
 
         if self.turn.phase.as_action_phase_mut()?.remaining_actions == 0 {
             Err(Error::NoMoreActions)
@@ -99,8 +99,8 @@ impl Arena {
         }
     }
 
-    pub fn play_treasure(&mut self, player_id: usize, card: CardKind) -> Result<()> {
-        self.check_active(player_id)?;
+    pub fn play_treasure(&mut self, card: CardKind) -> Result<()> {
+        let player_id = self.current_player_id_can_mut()?;
 
         self.turn.phase.as_buy_phase_mut()?;
 
@@ -117,8 +117,8 @@ impl Arena {
         Ok(())
     }
 
-    pub fn buy_card(&mut self, player_id: usize, card: CardKind) -> Result<()> {
-        self.check_active(player_id)?;
+    pub fn buy_card(&mut self, card: CardKind) -> Result<()> {
+        let player_id = self.current_player_id_can_mut()?;
 
         let &mut BuyPhase {
             remaining_buys,
@@ -254,16 +254,6 @@ impl Arena {
         }
     }
 
-    fn check_active(&mut self, player_id: usize) -> Result<()> {
-        if player_id >= self.players.len() {
-            Err(Error::InvalidPlayerId)
-        } else if player_id != self.turn.player_id {
-            Err(Error::InactivePlayer)
-        } else {
-            Ok(())
-        }
-    }
-
     fn start_game(&mut self) {
         for p in self.players.iter_mut() {
             p.cleanup();
@@ -289,24 +279,23 @@ impl Arena {
     pub(crate) fn next_player_id(&self) -> usize {
         (self.turn.player_id + 1) % self.players.len()
     }
+
+    fn current_player_id_can_mut(&mut self) -> Result<usize> {
+        if self.action_effect.is_resolved() {
+            Ok(self.turn.player_id)
+        } else {
+            // Assume that the next ActionEffectFunc is a source.
+            Err(Error::UnresolvedActionEffect(
+                self.action_effect.resolve_condition()
+            ))
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::dominion::{Arena, KingdomSet};
-
-    #[test]
-    fn test_check_active_player() {
-        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
-
-        let r = arena.check_active(0);
-        assert!(r.is_ok());
-
-        let r = arena.check_active(1);
-        assert!(r.is_err());
-        assert_eq!(r.unwrap_err(), Error::InactivePlayer);
-    }
 
     #[test]
     fn player_valid_index() {
@@ -340,7 +329,7 @@ mod tests {
             remaining_copper: 0,
         });
 
-        let r = arena.end_action_phase(0);
+        let r = arena.end_action_phase();
 
         assert!(r.is_ok());
         assert_eq!(
@@ -363,7 +352,7 @@ mod tests {
             remaining_copper: 0,
         });
 
-        let r = arena.end_buy_phase(0);
+        let r = arena.end_buy_phase();
 
         assert!(r.is_ok());
         assert_eq!(arena.turn.phase, STARTING_TURNPHASE);
@@ -385,7 +374,7 @@ mod tests {
 
         let copper_supply = arena.supply.get_mut(CardKind::Copper).unwrap().to_owned();
 
-        let r = arena.buy_card(0, CardKind::Copper);
+        let r = arena.buy_card(CardKind::Copper);
 
         assert!(r.is_ok());
         assert_eq!(
@@ -416,7 +405,7 @@ mod tests {
 
         let market_supply = arena.supply.get_mut(CardKind::Market).unwrap().to_owned();
 
-        let r = arena.buy_card(0, CardKind::Market);
+        let r = arena.buy_card(CardKind::Market);
 
         assert!(r.is_ok());
         assert_eq!(
@@ -445,7 +434,7 @@ mod tests {
             remaining_copper: 100,
         });
 
-        let r = arena.buy_card(0, CardKind::Gold);
+        let r = arena.buy_card(CardKind::Gold);
 
         assert!(r.is_err());
         assert_eq!(r.unwrap_err(), Error::NoMoreBuys);
@@ -453,7 +442,7 @@ mod tests {
     }
 
     #[test]
-    fn buy_card_not_enough_wealth() {
+    fn buy_card_not_enough_copper() {
         let mut arena = Arena::new(KingdomSet::FirstGame, 2);
 
         arena.turn.phase = TurnPhase::Buy(BuyPhase {
@@ -461,7 +450,7 @@ mod tests {
             remaining_copper: 0,
         });
 
-        let r = arena.buy_card(0, CardKind::Gold);
+        let r = arena.buy_card(CardKind::Gold);
 
         assert!(r.is_err());
         assert_eq!(r.unwrap_err(), Error::NotEnoughCopper);
@@ -477,7 +466,7 @@ mod tests {
             remaining_copper: 100,
         });
 
-        let r = arena.buy_card(0, CardKind::Witch);
+        let r = arena.buy_card(CardKind::Witch);
 
         assert!(r.is_err());
         assert_eq!(r.unwrap_err(), Error::InvalidCardChoice);
@@ -494,30 +483,10 @@ mod tests {
             remaining_copper: 0,
         });
 
-        let r = arena.play_action(0, CardKind::Market);
+        let r = arena.play_action(CardKind::Market);
 
         assert!(r.is_err());
         assert_eq!(r.unwrap_err(), Error::InvalidCardChoice);
-    }
-
-    #[test]
-    fn play_action_out_of_turn() {
-        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
-
-        arena.turn.phase = TurnPhase::Buy(BuyPhase {
-            remaining_buys: 1,
-            remaining_copper: 0,
-        });
-
-        assert_eq!(arena.turn.player_id, 0);
-
-        arena.players[1].hand.clear();
-        arena.players[1].hand.push(CardKind::Moat);
-        let r = arena.play_action(1, CardKind::Moat);
-
-        assert!(r.is_err());
-        assert_eq!(r.unwrap_err(), Error::InactivePlayer);
-        assert_eq!(arena.player(1).unwrap().hand.len(), 1);
     }
 
     #[test]
@@ -532,7 +501,7 @@ mod tests {
 
         arena.players[0].hand.clear();
         arena.players[0].hand.push(CardKind::Smithy);
-        let r = arena.play_action(0, CardKind::Smithy);
+        let r = arena.play_action(CardKind::Smithy);
 
         assert!(r.is_ok());
         assert_eq!(arena.player(0).unwrap().hand.len(), 3);
@@ -557,7 +526,7 @@ mod tests {
 
         arena.players[0].hand.clear();
         arena.players[0].hand.push(CardKind::Smithy);
-        let r = arena.play_action(0, CardKind::Smithy);
+        let r = arena.play_action( CardKind::Smithy);
 
         assert!(r.is_err());
         assert_eq!(r.unwrap_err(), Error::WrongTurnPhase);
@@ -576,7 +545,7 @@ mod tests {
 
         arena.players[0].hand.clear();
         arena.players[0].hand.push(CardKind::Gold);
-        let r = arena.play_treasure(0, CardKind::Gold);
+        let r = arena.play_treasure(CardKind::Gold);
 
         assert!(r.is_err());
         assert_eq!(r.unwrap_err(), Error::WrongTurnPhase);
@@ -594,7 +563,7 @@ mod tests {
 
         arena.players[0].hand.clear();
         arena.players[0].hand.push(CardKind::Gold);
-        let r = arena.play_treasure(0, CardKind::Gold);
+        let r = arena.play_treasure(CardKind::Gold);
 
         assert!(r.is_ok());
         assert_eq!(arena.player(0).unwrap().hand.len(), 0);

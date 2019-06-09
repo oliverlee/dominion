@@ -116,6 +116,22 @@ mod tests {
     }
 
     #[test]
+    fn test_draw_card_empty_draw_and_discard() {
+        let mut p = Player::new();
+
+        p.draw_pile.clear();
+        p.discard_pile.clear();
+
+        p.hand.push(CardKind::Copper);
+        p.hand.push(CardKind::Copper);
+
+        p.draw_card();
+        assert_eq!(p.draw_pile, vec![]);
+        assert_eq!(p.discard_pile, vec![]);
+        assert_eq!(p.hand, vec![CardKind::Copper; 2]);
+    }
+
+    #[test]
     fn test_cleanup() {
         let mut p = Player::new();
 

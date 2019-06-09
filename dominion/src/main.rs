@@ -34,9 +34,9 @@ fn main() {
     println!("arena: {:#?}", arena);
 }
 
-fn skip_turn(arena: &mut Arena, player_id: usize) {
-    arena.end_action_phase(player_id).unwrap();
-    arena.end_buy_phase(player_id).unwrap();
+fn skip_turn(arena: &mut Arena, _: usize) {
+    arena.end_action_phase().unwrap();
+    arena.end_buy_phase().unwrap();
 }
 
 fn play_all_treasures(arena: &mut Arena, player_id: usize) {
@@ -48,13 +48,13 @@ fn play_all_treasures(arena: &mut Arena, player_id: usize) {
             .find(|&&x| x == card)
             .is_some()
         {
-            arena.play_treasure(player_id, card).unwrap();
+            arena.play_treasure(card).unwrap();
         }
     }
 }
 
 fn big_money(arena: &mut Arena, player_id: usize) {
-    arena.end_action_phase(player_id).unwrap();
+    arena.end_action_phase().unwrap();
 
     play_all_treasures(arena, player_id);
     println!(
@@ -64,9 +64,9 @@ fn big_money(arena: &mut Arena, player_id: usize) {
     );
 
     arena
-        .buy_card(player_id, CardKind::Province)
-        .map_err(|_| arena.buy_card(player_id, CardKind::Gold))
-        .map_err(|_| arena.buy_card(player_id, CardKind::Silver))
+        .buy_card(CardKind::Province)
+        .map_err(|_| arena.buy_card(CardKind::Gold))
+        .map_err(|_| arena.buy_card(CardKind::Silver))
         .or_else(|_| -> Result<(), ()> {
             match arena.turn_phase() {
                 TurnPhase::Action(_) => {
@@ -80,5 +80,5 @@ fn big_money(arena: &mut Arena, player_id: usize) {
         })
         .unwrap();
 
-    arena.end_buy_phase(player_id).unwrap();
+    arena.end_buy_phase().unwrap();
 }

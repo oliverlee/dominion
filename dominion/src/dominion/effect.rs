@@ -76,19 +76,26 @@ impl ActionCardEffect {
 pub(crate) struct ActionEffect(VecDeque<ActionCardEffect>);
 
 impl ActionEffect {
-    pub fn new() -> ActionEffect {
+    pub(crate) fn new() -> ActionEffect {
         ActionEffect(VecDeque::new())
     }
 
-    pub fn queue_card_effect(&mut self, card: CardKind) {
+    pub(crate) fn queue_card_effect(&mut self, card: CardKind) {
         self.0.push_back(ActionCardEffect::new(card));
     }
 
-    pub fn is_resolved(&self) -> bool {
+    pub(crate) fn is_resolved(&self) -> bool {
         self.0.is_empty()
     }
 
-    pub fn resolve(
+    pub(crate) fn resolve_condition(&self) -> &'static str {
+        match self.0.front().unwrap().0.last().unwrap() {
+            ActionEffectFunc::Source(x) => x.description,
+            _ => panic!("Expected enum type ActionEffectFunc::Source."),
+        }
+    }
+
+    pub(crate) fn resolve(
         &mut self,
         arena: &mut Arena,
         player_id: usize,
