@@ -45,12 +45,12 @@ impl Player {
 
     pub(crate) fn draw_card(&mut self) {
         if self.draw_pile.is_empty() {
-            self.draw_pile.append(&mut self.discard_pile);
+            std::mem::swap(&mut self.draw_pile, &mut self.discard_pile);
             self.shuffle_deck();
         }
 
-        // TODO handle empty deck
-        self.hand.push(self.draw_pile.remove(0));
+        // We consider the top of the draw pile to be the end that is popped.
+        self.draw_pile.pop().map(|x| self.hand.push(x));
     }
 
     pub(crate) fn cleanup(&mut self) {
@@ -89,8 +89,8 @@ mod tests {
         p.draw_pile.clear();
         assert!(p.draw_pile.is_empty());
 
-        p.draw_pile.push(CardKind::Copper);
         p.draw_pile.push(CardKind::Silver);
+        p.draw_pile.push(CardKind::Copper);
 
         p.draw_card();
 
