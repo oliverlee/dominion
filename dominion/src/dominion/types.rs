@@ -12,7 +12,7 @@ pub enum Error {
     NoMoreCards,
     NotEnoughCopper,
     InvalidCardChoice,
-    UnresolvedActionStack(&'static str),
+    UnresolvedActionEffect(&'static str),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

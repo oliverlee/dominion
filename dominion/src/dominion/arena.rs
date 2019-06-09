@@ -1,3 +1,4 @@
+use crate::dominion::effect::ActionEffect;
 use crate::dominion::player::Player;
 use crate::dominion::turn_phase::{ActionPhase, BuyPhase, TurnPhase};
 use crate::dominion::types::{CardSpecifier, CardVec, Error, Location, Result};
@@ -23,6 +24,7 @@ pub struct Arena {
     pub(crate) players: Vec<Player>,
     pub(crate) turn: Turn,
     trash: CardVec,
+    pub(crate) action_effect: ActionEffect,
 }
 
 impl Arena {
@@ -35,6 +37,7 @@ impl Arena {
                 phase: STARTING_TURNPHASE,
             },
             trash: CardVec::new(),
+            action_effect: ActionEffect::new(),
         };
 
         arena.start_game();
@@ -154,6 +157,10 @@ impl Arena {
         }
     }
 
+    pub fn select_cards(&mut self, player_id: usize, cards: &CardVec) -> Result<()> {
+        self.try_resolve(player_id, Some(cards))
+    }
+
     pub(crate) fn hand(&self, player_id: usize) -> Result<&CardVec> {
         self.player(player_id).map(|player| &player.hand)
     }
@@ -221,6 +228,30 @@ impl Arena {
             Location::Supply => panic!("Cannot move card to destination Location::Supply."),
             _ => self.location(destination).push(card),
         };
+    }
+
+    pub(crate) fn try_resolve(
+        &mut self,
+        player_id: usize,
+        selected_cards: Option<&CardVec>,
+    ) -> Result<()> {
+        let mut temp_effect = ActionEffect::new();
+
+        // The Arena contains the ActionEffect to track the state of resolving an action card.
+        // However, the ActionEffect::resolve method requires a mutable reference to the
+        // Arena as it will need to modify the game state. To prevent more than one mutable borrow,
+        // we create a second ActionEffect and swap them.
+        std::mem::swap(&mut temp_effect, &mut self.action_effect);
+
+        let r = temp_effect.resolve(self, player_id, selected_cards);
+
+        if !self.action_effect.is_resolved() {
+            panic!("Arena::action_effect cannot be modified while resolving the temporary effect stack.");
+        }
+
+        std::mem::swap(&mut temp_effect, &mut self.action_effect);
+
+        r
     }
 
     fn check_active(&mut self, player_id: usize) -> Result<()> {

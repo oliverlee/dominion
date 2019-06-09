@@ -18,6 +18,7 @@ pub enum CardKind {
     Market,
     Mine,
     Witch,
+    ThroneRoom,
 }
 
 impl CardKind {
@@ -41,6 +42,7 @@ impl CardKind {
             CardKind::Market => 5,
             CardKind::Mine => 5,
             CardKind::Witch => 5,
+            CardKind::ThroneRoom => 4,
         }
     }
 
@@ -110,6 +112,12 @@ impl CardKind {
             }),
             CardKind::Witch => Some(&CardResources {
                 cards: 2,
+                actions: 0,
+                buys: 0,
+                copper: 0,
+            }),
+            CardKind::ThroneRoom => Some(&CardResources {
+                cards: 0,
                 actions: 0,
                 buys: 0,
                 copper: 0,

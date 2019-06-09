@@ -1,30 +1,87 @@
 use crate::dominion::types::{CardSpecifier, CardVec, Error, Location, Result};
 use crate::dominion::Arena;
 use crate::dominion::CardKind;
+use std::collections::VecDeque;
 
-pub struct ActionEffectStack(Vec<ActionEffect>);
+#[derive(Debug)]
+struct ActionCardEffect(Vec<ActionEffectFunc>);
 
-impl ActionEffectStack {
-    pub fn new(card: CardKind) -> ActionEffectStack {
+impl ActionCardEffect {
+    fn new(card: CardKind) -> ActionCardEffect {
         let mut stack = Vec::new();
 
         match card {
-            CardKind::Market => {
-                stack.push(ActionEffect::Function(add_card_resources_func(
-                    CardKind::Market,
-                )));
-            }
+            //CardKind::Cellar => unimplemeted!(),
+            //CardKind::Chapel => unimplemeted!(),
+            //CardKind::Harbinger => unimplemeted!(),
+            //CardKind::Vassal => unimplemeted!(),
+            //CardKind::Workshop => unimplemeted!(),
+            //CardKind::Bureaucrat => unimplemeted!(),
             CardKind::Militia => {
-                stack.push(ActionEffect::Function(add_card_resources_func(
-                    CardKind::Militia,
-                )));
-                stack.push(ActionEffect::Sink(action_effect_sink_militia));
-                stack.push(ActionEffect::Source(&ACTION_EFFECT_SOURCE_MILITIA));
+                stack.push(ActionEffectFunc::Sink(action_effect_sink_militia));
+                stack.push(ActionEffectFunc::Source(&ACTION_EFFECT_SOURCE_MILITIA));
             }
+            //CardKind::Moneylender => unimplemeted!(),
+            //CardKind::Poacher => unimplemeted!(),
+            //CardKind::Remodel => unimplemeted!(),
+            CardKind::ThroneRoom => {
+                stack.push(ActionEffectFunc::Sink(action_effect_sink_throne_room));
+                stack.push(ActionEffectFunc::Source(&ACTION_EFFECT_SOURCE_THRONE_ROOM));
+            }
+            //CardKind::Bandit => unimplemeted!(),
+            //CardKind::CouncilRoom => unimplemeted!(),
+            //CardKind::Festival => unimplemeted!(),
+            //CardKind::Laboratory => unimplemeted!(),
+            //CardKind::Library => unimplemeted!(),
+            //CardKind::Mine => unimplemeted!(),
+            //CardKind::Sentry => unimplemeted!(),
+            //CardKind::Witch => unimplemeted!(),
+            //CardKind::Artisan => unimplemeted!(),
             _ => (),
         }
+        stack.push(ActionEffectFunc::Function(add_card_resources_func(card)));
 
-        ActionEffectStack(stack)
+        ActionCardEffect(stack)
+    }
+
+    fn resolve_next(
+        &mut self,
+        arena: &mut Arena,
+        player_id: usize,
+        selected_cards: Option<&CardVec>,
+    ) -> Result<AdditionalCardEffects> {
+        let r = match self.0.last().unwrap() {
+            ActionEffectFunc::Source(f) => {
+                if selected_cards
+                    .map_or_else(|| false, |cards| (f.condition)(arena, player_id, cards))
+                {
+                    Ok(None)
+                } else {
+                    Err(Error::UnresolvedActionEffect(f.description))
+                }
+            }
+            ActionEffectFunc::Sink(f) => Ok(f(arena, player_id, &selected_cards.unwrap())),
+            ActionEffectFunc::Function(f) => Ok(f(arena, player_id)),
+        };
+
+        if r.is_ok() {
+            self.0.pop();
+        }
+
+        r
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct ActionEffect(VecDeque<ActionCardEffect>);
+
+impl ActionEffect {
+    pub fn new() -> ActionEffect {
+        ActionEffect(VecDeque::new())
+    }
+
+    pub fn queue_card_effect(&mut self, card: CardKind) {
+        self.0.push_back(ActionCardEffect::new(card));
     }
 
     pub fn is_resolved(&self) -> bool {
@@ -37,60 +94,85 @@ impl ActionEffectStack {
         player_id: usize,
         selected_cards: Option<&CardVec>,
     ) -> Result<()> {
+        let mut player_id = player_id;
+        let mut selected_cards = selected_cards;
+
         loop {
-            match self.0.last() {
-                Some(item) => {
-                    match item {
-                        ActionEffect::Source(f) => {
-                            if !selected_cards.map_or_else(
-                                || false,
-                                |cards| (f.condition)(arena, player_id, cards),
-                            ) {
-                                return Err(Error::UnresolvedActionStack(f.description));
-                            }
-                        }
-                        ActionEffect::Sink(f) => f(arena, player_id, &selected_cards.unwrap()),
-                        ActionEffect::Function(f) => f(arena, player_id),
-                    };
-                    self.0.pop();
+            for _ in 0..self.0.front().map_or(0, |v| v.0.len()) {
+                let cards =
+                    self.0
+                        .front_mut()
+                        .unwrap()
+                        .resolve_next(arena, player_id, selected_cards)?;
+
+                if let Some(cards) = cards {
+                    for card in cards {
+                        self.queue_card_effect(card);
+                    }
+                };
+            }
+
+            match self.0.pop_front() {
+                Some(_) => {
+                    // Don't use the same selected cards in subsequent spawned action card effects.
+                    player_id = arena.turn.player_id;
+                    selected_cards = None;
                 }
                 None => break,
-            };
+            }
         }
 
         Ok(())
     }
 }
 
+type AdditionalCardEffects = Option<CardVec>;
 type SourceCondition = fn(arena: &Arena, player_id: usize, cards: &CardVec) -> bool;
-type SinkFunction = fn(arena: &mut Arena, player_id: usize, cards: &CardVec);
-type StackFunction = Box<dyn Fn(&mut Arena, usize)>;
+type SinkFunction =
+    fn(arena: &mut Arena, player_id: usize, cards: &CardVec) -> AdditionalCardEffects;
+type StackFunction = Box<dyn Fn(&mut Arena, usize) -> AdditionalCardEffects>;
 
 struct ActionSource {
     condition: SourceCondition,
     description: &'static str,
 }
 
-enum ActionEffect {
+enum ActionEffectFunc {
     Source(&'static ActionSource),
     Sink(SinkFunction),
     Function(StackFunction),
 }
 
-fn add_card_resources_func(card: CardKind) -> StackFunction {
-    Box::new(move |arena: &mut Arena, _: usize| {
-        let resources = card.action().unwrap();
-        let action_phase = arena.turn.phase.as_action_phase_mut().unwrap();
-
-        action_phase.remaining_actions += resources.actions;
-        action_phase.remaining_buys += resources.buys;
-        action_phase.remaining_copper += resources.copper;
-
-        let player = arena.current_player_mut();
-        for _ in 0..resources.cards {
-            player.draw_card();
+impl std::fmt::Debug for ActionEffectFunc {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            ActionEffectFunc::Source(x) => {
+                write!(f, "ActionEffectFunc::Source({:?})", x.description)
+            }
+            ActionEffectFunc::Sink(_) => write!(f, "ActionEffectFunc::Sink"),
+            ActionEffectFunc::Function(_) => write!(f, "ActionEffectFunc::Function"),
         }
-    })
+    }
+}
+
+fn add_card_resources_func(card: CardKind) -> StackFunction {
+    Box::new(
+        move |arena: &mut Arena, _: usize| -> AdditionalCardEffects {
+            let resources = card.action().unwrap();
+            let action_phase = arena.turn.phase.as_action_phase_mut().unwrap();
+
+            action_phase.remaining_actions += resources.actions;
+            action_phase.remaining_buys += resources.buys;
+            action_phase.remaining_copper += resources.copper;
+
+            let player = arena.current_player_mut();
+            for _ in 0..resources.cards {
+                player.draw_card();
+            }
+
+            None
+        },
+    )
 }
 
 const ACTION_EFFECT_SOURCE_MILITIA: &'static ActionSource = &ActionSource {
@@ -103,7 +185,7 @@ fn action_effect_source_cond_militia(arena: &Arena, player_id: usize, cards: &Ca
     if player_id == arena.next_player_id() {
         let hand = &arena.players[player_id].hand;
 
-        if hand.len() == cards.len() + 3 {
+        if std::cmp::max(hand.len(), 3) == cards.len() + 3 {
             // TODO: Use something more efficient.
             let mut hand2 = hand.clone();
             cards.iter().all(|card| hand2.remove_item(card).is_some())
@@ -115,13 +197,56 @@ fn action_effect_source_cond_militia(arena: &Arena, player_id: usize, cards: &Ca
     }
 }
 
-fn action_effect_sink_militia(arena: &mut Arena, player_id: usize, cards: &CardVec) {
+fn action_effect_sink_militia(
+    arena: &mut Arena,
+    player_id: usize,
+    cards: &CardVec,
+) -> AdditionalCardEffects {
     for &card in cards {
         arena.move_card(
             Location::Hand { player_id },
             Location::Discard { player_id },
             CardSpecifier::Card(card),
         );
+    }
+
+    None
+}
+
+const ACTION_EFFECT_SOURCE_THRONE_ROOM: &'static ActionSource = &ActionSource {
+    condition: action_effect_source_cond_throne_room,
+    description: "You may play an Action card from your hand twice.",
+};
+
+fn action_effect_source_cond_throne_room(arena: &Arena, _: usize, cards: &CardVec) -> bool {
+    let hand = &arena.current_player().hand;
+
+    if cards.len() == 0 {
+        true
+    } else if cards.len() == 1 {
+        hand.iter()
+            .find(|&&hand_card| hand_card == cards[0])
+            .is_some()
+    } else {
+        false
+    }
+}
+
+fn action_effect_sink_throne_room(
+    arena: &mut Arena,
+    player_id: usize,
+    cards: &CardVec,
+) -> AdditionalCardEffects {
+    if cards.len() == 1 {
+        arena.move_card(
+            Location::Hand { player_id },
+            Location::Play { player_id },
+            CardSpecifier::Card(cards[0]),
+        );
+
+        Some(vec![cards[0]; 2])
+    } else {
+        None
     }
 }
 
@@ -133,50 +258,21 @@ mod test {
 
     #[test]
     fn empty_stack_is_resolved() {
-        let stack = ActionEffectStack(Vec::new());
-        assert!(stack.is_resolved());
-    }
-
-    #[test]
-    fn resolve_simple_stack() {
-        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
-
-        let mut stack = ActionEffectStack(vec![ActionEffect::Function(add_card_resources_func(
-            CardKind::Market,
-        ))]);
-
-        assert!(!stack.is_resolved());
-        assert_eq!(
-            arena.turn_phase(),
-            TurnPhase::Action(ActionPhase {
-                remaining_actions: 1,
-                remaining_buys: 1,
-                remaining_copper: 0,
-            })
-        );
-        assert_eq!(arena.current_player().hand.len(), 5);
-
-        assert_eq!(stack.resolve(&mut arena, 0, None), Ok(()));
-        assert!(stack.is_resolved());
-        assert_eq!(
-            arena.turn_phase(),
-            TurnPhase::Action(ActionPhase {
-                remaining_actions: 2,
-                remaining_buys: 2,
-                remaining_copper: 1,
-            })
-        );
-        assert_eq!(arena.current_player().hand.len(), 6);
+        let stacks = ActionEffect(VecDeque::new());
+        assert!(stacks.is_resolved());
     }
 
     #[test]
     fn resolve_market_stack() {
         let mut arena = Arena::new(KingdomSet::FirstGame, 2);
+        arena.action_effect.queue_card_effect(CardKind::Market);
 
-        let mut stack = ActionEffectStack::new(CardKind::Market);
+        let r = arena.try_resolve(0, None);
 
-        assert_eq!(stack.resolve(&mut arena, 0, None), Ok(()));
-        assert!(stack.is_resolved());
+        assert_eq!(r, Ok(()));
+        assert!(arena.action_effect.is_resolved());
+
+        // Market is never played so no resources are used.
         assert_eq!(
             arena.turn_phase(),
             TurnPhase::Action(ActionPhase {
@@ -190,39 +286,167 @@ mod test {
     #[test]
     fn resolve_militia_stack() {
         let mut arena = Arena::new(KingdomSet::FirstGame, 2);
+        arena.action_effect.queue_card_effect(CardKind::Militia);
 
-        let mut stack = ActionEffectStack::new(CardKind::Militia);
+        let r = arena.try_resolve(0, None);
 
         assert_eq!(
-            stack.resolve(&mut arena, 0, None),
-            Err(Error::UnresolvedActionStack(
+            r,
+            Err(Error::UnresolvedActionEffect(
                 "Each other player discards down to 3 cards in their hand."
             ))
         );
-        assert!(!stack.is_resolved());
-
-        println!("{:?}", arena.hand(1).unwrap());
+        assert!(!arena.action_effect.is_resolved());
 
         let discard_cards = vec![CardKind::Estate, CardKind::Copper];
+        let r = arena.select_cards(0, &discard_cards);
+
         assert_eq!(
-            stack.resolve(&mut arena, 0, Some(&discard_cards)),
-            Err(Error::UnresolvedActionStack(
+            r,
+            Err(Error::UnresolvedActionEffect(
                 "Each other player discards down to 3 cards in their hand."
             ))
         );
-        assert!(!stack.is_resolved());
+        assert!(!arena.action_effect.is_resolved());
 
-        assert_eq!(stack.resolve(&mut arena, 1, Some(&discard_cards)), Ok(()));
-        assert!(stack.is_resolved());
+        let r = arena.select_cards(1, &discard_cards);
+
+        assert_eq!(r, Ok(()));
+        assert!(arena.action_effect.is_resolved());
 
         assert_eq!(arena.hand(1).unwrap().len(), 3);
 
+        // Militia is never played so no resources are used.
         assert_eq!(
             arena.turn_phase(),
             TurnPhase::Action(ActionPhase {
                 remaining_actions: 1,
                 remaining_buys: 1,
                 remaining_copper: 2,
+            })
+        );
+    }
+
+    #[test]
+    fn resolve_throne_room_stack_no_action() {
+        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
+        arena.action_effect.queue_card_effect(CardKind::ThroneRoom);
+
+        let r = arena.try_resolve(0, None);
+
+        assert_eq!(
+            r,
+            Err(Error::UnresolvedActionEffect(
+                "You may play an Action card from your hand twice."
+            ))
+        );
+        assert!(!arena.action_effect.is_resolved());
+
+        let throne_room_action = vec![];
+        let r = arena.select_cards(0, &throne_room_action);
+
+        assert_eq!(r, Ok(()));
+        assert!(arena.action_effect.is_resolved());
+
+        assert_eq!(arena.current_player().hand.len(), 5);
+        assert_eq!(
+            arena.turn_phase(),
+            TurnPhase::Action(ActionPhase {
+                remaining_actions: 1,
+                remaining_buys: 1,
+                remaining_copper: 0,
+            })
+        );
+    }
+
+    #[test]
+    fn resolve_throne_room_stack_smithy() {
+        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
+        arena.current_player_mut().hand.push(CardKind::Smithy);
+
+        assert_eq!(arena.current_player().hand.len(), 6);
+        assert_eq!(
+            arena.turn_phase(),
+            TurnPhase::Action(ActionPhase {
+                remaining_actions: 1,
+                remaining_buys: 1,
+                remaining_copper: 0,
+            })
+        );
+
+        arena.action_effect.queue_card_effect(CardKind::ThroneRoom);
+        let throne_room_action = vec![CardKind::Smithy];
+        let r = arena.select_cards(0, &throne_room_action);
+
+        assert_eq!(r, Ok(()));
+        assert!(arena.action_effect.is_resolved());
+
+        // There are only 5 cards that can be drawn + 5 in hand.
+        assert_eq!(arena.current_player().hand.len(), 10);
+
+        // Throne Room and Smithy are never played normally so no resources are used.
+        assert_eq!(
+            arena.turn_phase(),
+            TurnPhase::Action(ActionPhase {
+                remaining_actions: 1,
+                remaining_buys: 1,
+                remaining_copper: 0,
+            })
+        );
+    }
+
+    #[test]
+    fn resolve_throne_room_stack_militia() {
+        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
+        arena.current_player_mut().hand.push(CardKind::Militia);
+
+        assert_eq!(arena.current_player().hand.len(), 6);
+        assert_eq!(
+            arena.turn_phase(),
+            TurnPhase::Action(ActionPhase {
+                remaining_actions: 1,
+                remaining_buys: 1,
+                remaining_copper: 0,
+            })
+        );
+
+        // Ensure that the ActionEffect is not resolved as the other player must select cards to
+        // discard.
+        arena.action_effect.queue_card_effect(CardKind::ThroneRoom);
+        let throne_room_action = vec![CardKind::Militia];
+        let r = arena.select_cards(0, &throne_room_action);
+        assert_eq!(
+            r,
+            Err(Error::UnresolvedActionEffect(
+                "Each other player discards down to 3 cards in their hand."
+            ))
+        );
+        assert!(!arena.action_effect.is_resolved());
+
+        // Ensure that card selection only resolves first Militia action effect.
+        let discard_cards = vec![CardKind::Copper; 2];
+        let r = arena.select_cards(1, &discard_cards);
+        assert_eq!(
+            r,
+            Err(Error::UnresolvedActionEffect(
+                "Each other player discards down to 3 cards in their hand."
+            ))
+        );
+        assert!(!arena.action_effect.is_resolved());
+
+        // No need to discard cards on the second Militia action effect.
+        let discard_cards = vec![];
+        let r = arena.select_cards(1, &discard_cards);
+        assert_eq!(r, Ok(()));
+        assert!(arena.action_effect.is_resolved());
+
+        // Throne Room and Militia are never played normally so no resources are used.
+        assert_eq!(
+            arena.turn_phase(),
+            TurnPhase::Action(ActionPhase {
+                remaining_actions: 1,
+                remaining_buys: 1,
+                remaining_copper: 4,
             })
         );
     }
