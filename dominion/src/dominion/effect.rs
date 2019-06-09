@@ -203,11 +203,13 @@ fn action_effect_sink_militia(
     cards: &CardVec,
 ) -> AdditionalCardEffects {
     for &card in cards {
-        arena.move_card(
-            Location::Hand { player_id },
-            Location::Discard { player_id },
-            CardSpecifier::Card(card),
-        );
+        arena
+            .move_card(
+                Location::Hand { player_id },
+                Location::Discard { player_id },
+                CardSpecifier::Card(card),
+            )
+            .unwrap();
     }
 
     None
@@ -238,11 +240,13 @@ fn action_effect_sink_throne_room(
     cards: &CardVec,
 ) -> AdditionalCardEffects {
     if cards.len() == 1 {
-        arena.move_card(
-            Location::Hand { player_id },
-            Location::Play { player_id },
-            CardSpecifier::Card(cards[0]),
-        );
+        arena
+            .move_card(
+                Location::Hand { player_id },
+                Location::Play { player_id },
+                CardSpecifier::Card(cards[0]),
+            )
+            .unwrap();
 
         Some(vec![cards[0]; 2])
     } else {

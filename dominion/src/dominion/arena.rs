@@ -77,55 +77,42 @@ impl Arena {
     pub fn play_action(&mut self, player_id: usize, card: CardKind) -> Result<()> {
         self.check_active(player_id)?;
 
-        let action_phase = self.turn.phase.as_action_phase_mut()?;
-
-        if action_phase.remaining_actions == 0 {
+        if self.turn.phase.as_action_phase_mut()?.remaining_actions == 0 {
             Err(Error::NoMoreActions)
         } else {
-            let card_index = self.players[player_id]
-                .hand
-                .iter()
-                .position(|&x| x == card)
-                .ok_or_else(|| Error::InvalidCardChoice)?;
-
-            let resources = card.action().ok_or_else(|| Error::InvalidCardChoice)?;
-
-            action_phase.remaining_actions -= 1;
-
-            let player = &mut self.players[player_id];
-            let card = player.hand.remove(card_index);
-            player.play_zone.push(card);
-
-            action_phase.remaining_actions += resources.actions;
-            action_phase.remaining_buys += resources.buys;
-            action_phase.remaining_copper += resources.copper;
-
-            for _ in 0..resources.cards {
-                self.players[player_id].draw_card();
+            if card.action().is_some() {
+                self.move_card(
+                    Location::Hand { player_id },
+                    Location::Play { player_id },
+                    CardSpecifier::Card(card),
+                )?;
+                self.turn
+                    .phase
+                    .as_action_phase_mut()
+                    .unwrap()
+                    .remaining_actions -= 1;
+                self.action_effect.queue_card_effect(card);
+                self.try_resolve(player_id, None)
+            } else {
+                Err(Error::InvalidCardChoice)
             }
-
-            Ok(())
         }
     }
 
     pub fn play_treasure(&mut self, player_id: usize, card: CardKind) -> Result<()> {
         self.check_active(player_id)?;
 
-        let buy_phase = self.turn.phase.as_buy_phase_mut()?;
-
-        let card_index = self.players[player_id]
-            .hand
-            .iter()
-            .position(|&x| x == card)
-            .ok_or_else(|| Error::InvalidCardChoice)?;
+        self.turn.phase.as_buy_phase_mut()?;
 
         let additional_copper = card.treasure().ok_or_else(|| Error::InvalidCardChoice)?;
 
-        let player = &mut self.players[player_id];
-        let card = player.hand.remove(card_index);
-        player.play_zone.push(card);
+        self.move_card(
+            Location::Hand { player_id },
+            Location::Play { player_id },
+            CardSpecifier::Card(card),
+        )?;
 
-        buy_phase.remaining_copper += additional_copper;
+        self.turn.phase.as_buy_phase_mut().unwrap().remaining_copper += additional_copper;
 
         Ok(())
     }
@@ -133,32 +120,37 @@ impl Arena {
     pub fn buy_card(&mut self, player_id: usize, card: CardKind) -> Result<()> {
         self.check_active(player_id)?;
 
-        let buy_phase = self.turn.phase.as_buy_phase_mut()?;
+        let &mut BuyPhase {
+            remaining_buys,
+            remaining_copper,
+        } = self.turn.phase.as_buy_phase_mut()?;
 
-        let supply_count = self
-            .supply
-            .get_mut(card)
-            .ok_or_else(|| Error::InvalidCardChoice)?;
-
-        if *supply_count == 0 {
-            Err(Error::NoMoreCards)
-        } else if buy_phase.remaining_buys == 0 {
+        if remaining_buys == 0 {
             Err(Error::NoMoreBuys)
-        } else if buy_phase.remaining_copper < card.cost() {
+        } else if remaining_copper < card.cost() {
             Err(Error::NotEnoughCopper)
         } else {
+            self.move_card(
+                Location::Supply,
+                Location::Discard { player_id },
+                CardSpecifier::Card(card),
+            )?;
+
+            let buy_phase = self.turn.phase.as_buy_phase_mut().unwrap();
             buy_phase.remaining_buys -= 1;
             buy_phase.remaining_copper -= card.cost();
-            *supply_count -= 1;
-
-            self.players[player_id].discard_pile.push(card);
 
             Ok(())
         }
     }
 
+    // Select cards to resolve an action effect.
     pub fn select_cards(&mut self, player_id: usize, cards: &CardVec) -> Result<()> {
-        self.try_resolve(player_id, Some(cards))
+        if player_id >= self.players.len() {
+            Err(Error::InvalidPlayerId)
+        } else {
+            self.try_resolve(player_id, Some(cards))
+        }
     }
 
     pub(crate) fn hand(&self, player_id: usize) -> Result<&CardVec> {
@@ -177,24 +169,12 @@ impl Arena {
         self.player(player_id).map(|player| player.in_deck(card))
     }
 
-    fn location(&mut self, loc: Location) -> &mut CardVec {
-        match loc {
-            Location::Draw { player_id } => &mut self.players[player_id].draw_pile,
-            Location::Discard { player_id } => &mut self.players[player_id].discard_pile,
-            Location::Hand { player_id } => &mut self.players[player_id].hand,
-            Location::Play { player_id } => &mut self.players[player_id].play_zone,
-            Location::Stage { player_id } => &mut self.players[player_id].stage,
-            Location::Supply => panic!("Cannot return Location::Supply as a '&mut CardVec'"),
-            Location::Trash => &mut self.trash,
-        }
-    }
-
     pub(crate) fn move_card(
         &mut self,
         origin: Location,
         destination: Location,
         card: CardSpecifier,
-    ) {
+    ) -> Result<()> {
         let card = match card {
             CardSpecifier::Top => match origin {
                 Location::Supply => {
@@ -208,19 +188,25 @@ impl Arena {
                 }
                 _ => self.location(origin).remove(i),
             },
-            CardSpecifier::Card(c) => match origin {
+            CardSpecifier::Card(card) => match origin {
                 Location::Supply => {
-                    let card_supply = self.supply.get_mut(c).unwrap();
+                    let card_supply = self
+                        .supply
+                        .get_mut(card)
+                        .ok_or_else(|| Error::InvalidCardChoice)?;
 
                     if *card_supply == 0 {
-                        panic!("Cannot move card from an empty supply pile.");
+                        Err(Error::NoMoreCards)?;
                     } else {
                         *card_supply -= 1;
                     }
 
-                    c
+                    card
                 }
-                _ => self.location(origin).remove_item(&c).unwrap(),
+                _ => self
+                    .location(origin)
+                    .remove_item(&card)
+                    .ok_or_else(|| Error::InvalidCardChoice)?,
             },
         };
 
@@ -228,6 +214,8 @@ impl Arena {
             Location::Supply => panic!("Cannot move card to destination Location::Supply."),
             _ => self.location(destination).push(card),
         };
+
+        Ok(())
     }
 
     pub(crate) fn try_resolve(
@@ -252,6 +240,18 @@ impl Arena {
         std::mem::swap(&mut temp_effect, &mut self.action_effect);
 
         r
+    }
+
+    fn location(&mut self, loc: Location) -> &mut CardVec {
+        match loc {
+            Location::Draw { player_id } => &mut self.players[player_id].draw_pile,
+            Location::Discard { player_id } => &mut self.players[player_id].discard_pile,
+            Location::Hand { player_id } => &mut self.players[player_id].hand,
+            Location::Play { player_id } => &mut self.players[player_id].play_zone,
+            Location::Stage { player_id } => &mut self.players[player_id].stage,
+            Location::Supply => panic!("Cannot return Location::Supply as a '&mut CardVec'"),
+            Location::Trash => &mut self.trash,
+        }
     }
 
     fn check_active(&mut self, player_id: usize) -> Result<()> {
