@@ -1,4 +1,4 @@
-use crate::dominion::effect::ActionEffect;
+use crate::dominion::effect::CardActionQueue;
 use crate::dominion::player::Player;
 use crate::dominion::turn_phase::{ActionPhase, BuyPhase, TurnPhase};
 use crate::dominion::types::{CardSpecifier, CardVec, Error, Location, Result};
@@ -24,7 +24,7 @@ pub struct Arena {
     pub(crate) players: Vec<Player>,
     pub(crate) turn: Turn,
     trash: CardVec,
-    pub(crate) action_effect: ActionEffect,
+    pub(crate) actions: CardActionQueue,
 }
 
 impl Arena {
@@ -37,7 +37,7 @@ impl Arena {
                 phase: STARTING_TURNPHASE,
             },
             trash: CardVec::new(),
-            action_effect: ActionEffect::new(),
+            actions: CardActionQueue::new(),
         };
 
         arena.start_game();
@@ -91,7 +91,7 @@ impl Arena {
                     .as_action_phase_mut()
                     .unwrap()
                     .remaining_actions -= 1;
-                self.action_effect.queue_card_effect(card);
+                self.actions.add_card(card);
                 self.try_resolve(player_id, None)
             } else {
                 Err(Error::InvalidCardChoice)
@@ -223,21 +223,21 @@ impl Arena {
         player_id: usize,
         selected_cards: Option<&CardVec>,
     ) -> Result<()> {
-        let mut temp_effect = ActionEffect::new();
+        let mut temp_effect = CardActionQueue::new();
 
         // The Arena contains the ActionEffect to track the state of resolving an action card.
         // However, the ActionEffect::resolve method requires a mutable reference to the
         // Arena as it will need to modify the game state. To prevent more than one mutable borrow,
         // we create a second ActionEffect and swap them.
-        std::mem::swap(&mut temp_effect, &mut self.action_effect);
+        std::mem::swap(&mut temp_effect, &mut self.actions);
 
         let r = temp_effect.resolve(self, player_id, selected_cards);
 
-        if !self.action_effect.is_resolved() {
-            panic!("Arena::action_effect cannot be modified while resolving the temporary effect stack.");
+        if !self.actions.is_resolved() {
+            panic!("Arena::actions cannot be modified while resolving the temporary effect stack.");
         }
 
-        std::mem::swap(&mut temp_effect, &mut self.action_effect);
+        std::mem::swap(&mut temp_effect, &mut self.actions);
 
         r
     }
@@ -281,12 +281,11 @@ impl Arena {
     }
 
     fn current_player_id_can_mut(&mut self) -> Result<usize> {
-        if self.action_effect.is_resolved() {
+        if self.actions.is_resolved() {
             Ok(self.turn.player_id)
         } else {
-            // Assume that the next ActionEffectFunc is a source.
             Err(Error::UnresolvedActionEffect(
-                self.action_effect.resolve_condition()
+                self.actions.condition().unwrap_or(""),
             ))
         }
     }
@@ -526,7 +525,7 @@ mod tests {
 
         arena.players[0].hand.clear();
         arena.players[0].hand.push(CardKind::Smithy);
-        let r = arena.play_action( CardKind::Smithy);
+        let r = arena.play_action(CardKind::Smithy);
 
         assert!(r.is_err());
         assert_eq!(r.unwrap_err(), Error::WrongTurnPhase);
