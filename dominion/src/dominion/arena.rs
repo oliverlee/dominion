@@ -153,19 +153,19 @@ impl Arena {
         }
     }
 
-    pub(crate) fn hand(&self, player_id: usize) -> Result<&CardVec> {
+    pub fn hand(&self, player_id: usize) -> Result<&CardVec> {
         self.player(player_id).map(|player| &player.hand)
     }
 
-    pub(crate) fn discard_pile(&self, player_id: usize) -> Result<&CardVec> {
+    pub fn discard_pile(&self, player_id: usize) -> Result<&CardVec> {
         self.player(player_id).map(|player| &player.discard_pile)
     }
 
-    pub(crate) fn play_zone(&self, player_id: usize) -> Result<&CardVec> {
+    pub fn play_zone(&self, player_id: usize) -> Result<&CardVec> {
         self.player(player_id).map(|player| &player.play_zone)
     }
 
-    pub(crate) fn in_deck(&self, player_id: usize, card: CardKind) -> Result<bool> {
+    pub fn in_deck(&self, player_id: usize, card: CardKind) -> Result<bool> {
         self.player(player_id).map(|player| player.in_deck(card))
     }
 
