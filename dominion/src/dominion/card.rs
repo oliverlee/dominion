@@ -18,6 +18,7 @@ pub enum CardKind {
     Market,
     Mine,
     Witch,
+    ThroneRoom,
 }
 
 impl CardKind {
@@ -41,6 +42,7 @@ impl CardKind {
             CardKind::Market => 5,
             CardKind::Mine => 5,
             CardKind::Witch => 5,
+            CardKind::ThroneRoom => 4,
         }
     }
 
@@ -64,55 +66,61 @@ impl CardKind {
     }
 
     // TODO: support non-standard actions
-    pub fn action(&self) -> Option<&'static CardEffect> {
+    pub fn action(&self) -> Option<&'static CardResources> {
         match self {
-            CardKind::Cellar => Some(&CardEffect {
-                card: 0, // FIXME
-                action: 1,
-                buy: 0,
-                worth: 0,
+            CardKind::Cellar => Some(&CardResources {
+                cards: 0, // FIXME
+                actions: 1,
+                buys: 0,
+                copper: 0,
             }),
-            CardKind::Moat => Some(&CardEffect {
-                card: 2,
-                action: 0,
-                buy: 0,
-                worth: 0,
+            CardKind::Moat => Some(&CardResources {
+                cards: 2,
+                actions: 0,
+                buys: 0,
+                copper: 0,
             }),
-            CardKind::Village => Some(&CardEffect {
-                card: 1,
-                action: 2,
-                buy: 0,
-                worth: 0,
+            CardKind::Village => Some(&CardResources {
+                cards: 1,
+                actions: 2,
+                buys: 0,
+                copper: 0,
             }),
-            CardKind::Merchant => Some(&CardEffect {
-                card: 1,
-                action: 1,
-                buy: 0,
-                worth: 0, // FIXME
+            CardKind::Merchant => Some(&CardResources {
+                cards: 1,
+                actions: 1,
+                buys: 0,
+                copper: 0, // FIXME
             }),
-            CardKind::Smithy => Some(&CardEffect {
-                card: 3,
-                action: 0,
-                buy: 0,
-                worth: 0,
+            CardKind::Smithy => Some(&CardResources {
+                cards: 3,
+                actions: 0,
+                buys: 0,
+                copper: 0,
             }),
-            CardKind::Militia => Some(&CardEffect {
-                card: 3,
-                action: 0,
-                buy: 0,
-                worth: 0,
+            CardKind::Militia => Some(&CardResources {
+                cards: 0,
+                actions: 0,
+                buys: 0,
+                copper: 2,
             }),
-            CardKind::Market => Some(&CardEffect {
-                card: 1,
-                action: 1,
-                buy: 1,
-                worth: 1,
+            CardKind::Market => Some(&CardResources {
+                cards: 1,
+                actions: 1,
+                buys: 1,
+                copper: 1,
             }),
-            CardKind::Witch => Some(&CardEffect {
-                card: 2,
-                action: 0,
-                buy: 0,
-                worth: 0,
+            CardKind::Witch => Some(&CardResources {
+                cards: 2,
+                actions: 0,
+                buys: 0,
+                copper: 0,
+            }),
+            CardKind::ThroneRoom => Some(&CardResources {
+                cards: 0,
+                actions: 0,
+                buys: 0,
+                copper: 0,
             }),
             _ => None,
         }
@@ -120,9 +128,9 @@ impl CardKind {
 }
 
 #[derive(Debug)]
-pub struct CardEffect {
-    pub card: i32,
-    pub action: i32,
-    pub buy: i32,
-    pub worth: i32,
+pub struct CardResources {
+    pub cards: i32,
+    pub actions: i32,
+    pub buys: i32,
+    pub copper: i32,
 }
