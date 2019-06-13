@@ -1,4 +1,6 @@
-#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
+use serde::Deserialize;
+
+#[derive(Copy, Clone, Deserialize, Debug, Eq, Hash, PartialEq)]
 pub enum CardKind {
     Copper,
     Silver,
