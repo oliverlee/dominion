@@ -1,4 +1,5 @@
 use crate::dominion::CardKind;
+use std::collections::HashMap;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum Error {
@@ -18,7 +19,9 @@ pub enum Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub type CardVec = Vec<CardKind>;
+pub type CardPiles = HashMap<CardKind, usize>;
 
+#[derive(Debug, PartialEq)]
 pub(crate) enum Location {
     Draw { player_id: usize },
     Discard { player_id: usize },
@@ -27,6 +30,12 @@ pub(crate) enum Location {
     Stage { player_id: usize },
     Supply,
     Trash,
+}
+
+#[derive(Debug)]
+pub(crate) enum LocationContents<'a> {
+    NonSupply(&'a CardVec),
+    Supply(&'a CardPiles),
 }
 
 pub(crate) enum CardSpecifier {

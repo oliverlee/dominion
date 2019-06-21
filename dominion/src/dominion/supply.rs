@@ -1,7 +1,5 @@
+use crate::dominion::types::CardPiles;
 use crate::dominion::CardKind;
-use std::collections::HashMap;
-
-type CardPiles = HashMap<CardKind, usize>;
 
 const BASE_CARDS: &'static [(CardKind, &'static dyn Fn(usize) -> usize)] = &[
     (CardKind::Copper, &|n| 60 - 7 * n),

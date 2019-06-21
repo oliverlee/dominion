@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use std::str::FromStr;
 
 #[derive(Copy, Clone, Deserialize, Debug, Eq, Hash, PartialEq)]
 pub enum CardKind {
@@ -21,6 +22,14 @@ pub enum CardKind {
     Mine,
     Witch,
     ThroneRoom,
+}
+
+impl FromStr for CardKind {
+    type Err = serde_json::error::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        serde_json::from_str(&format!("\"{}\"", s))
+    }
 }
 
 impl CardKind {
