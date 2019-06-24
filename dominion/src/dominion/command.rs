@@ -1,5 +1,5 @@
 use crate::dominion::card::CardKind;
-use crate::dominion::types::{CardVec, Location, LocationContents};
+use crate::dominion::types::{CardVec, Location};
 use std::error::Error;
 use std::fmt;
 use std::str::FromStr;

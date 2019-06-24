@@ -1,7 +1,7 @@
 use crate::dominion::effect::CardActionQueue;
 use crate::dominion::player::Player;
 use crate::dominion::turn_phase::{ActionPhase, BuyPhase, TurnPhase};
-use crate::dominion::types::{CardSpecifier, CardVec, Error, Location, Result};
+use crate::dominion::types::{CardSpecifier, CardVec, Error, Location, LocationView, Result};
 use crate::dominion::CardKind;
 use crate::dominion::KingdomSet;
 use crate::dominion::Supply;
@@ -45,36 +45,87 @@ impl Arena {
         arena
     }
 
-    pub fn supply(&self) -> &Supply {
-        &self.supply
+    pub fn view(&self, loc: Location) -> Result<LocationView> {
+        match loc {
+            Location::Draw { player_id } => self
+                .player(player_id)
+                .map(|player| LocationView::Ordered(&player.draw_pile)),
+            Location::Discard { player_id } => self
+                .player(player_id)
+                .map(|player| LocationView::Ordered(&player.discard_pile)),
+            Location::Hand { player_id } => self
+                .player(player_id)
+                .map(|player| LocationView::Ordered(&player.hand)),
+            Location::Play { player_id } => self
+                .player(player_id)
+                .map(|player| LocationView::Ordered(&player.play_zone)),
+            Location::Stage { player_id } => self
+                .player(player_id)
+                .map(|player| LocationView::Ordered(&player.stage)),
+            Location::Supply => Ok(LocationView::Unordered(
+                self.supply
+                    .base_cards
+                    .iter()
+                    .chain(self.supply.kingdom_cards.iter()),
+            )),
+            Location::Trash => Ok(LocationView::Ordered(&self.trash)),
+        }
+    }
+
+    pub fn kingdom(&self) -> impl std::iter::Iterator<Item = &'_ CardKind> {
+        self.supply.kingdom_cards.keys()
+    }
+
+    pub fn is_game_over(&self) -> bool {
+        self.supply.is_game_over()
+    }
+
+    pub fn in_deck(&self, player_id: usize, card: CardKind) -> Result<bool> {
+        self.player(player_id).map(|player| player.in_deck(card))
     }
 
     pub fn turn_phase(&self) -> TurnPhase {
-        self.turn.phase.clone()
+        self.turn.phase
     }
 
-    pub fn end_action_phase(&mut self) -> Result<()> {
+    pub fn end_phase(&mut self) -> Result<()> {
+        match self.turn.phase {
+            TurnPhase::Action(_) => self.end_action_phase(),
+            TurnPhase::Buy(_) => self.end_buy_phase(),
+        }
+    }
+
+    fn end_action_phase(&mut self) -> Result<()> {
         let _ = self.current_player_id_can_mut()?;
-        self.turn.phase = TurnPhase::Buy(self.turn.phase.as_action_phase_mut()?.as_buy_phase());
+
+        self.turn.phase = TurnPhase::Buy(self.turn.phase.as_action_phase_mut()?.to_buy_phase());
+
         Ok(())
     }
 
-    pub fn end_buy_phase(&mut self) -> Result<()> {
+    fn end_buy_phase(&mut self) -> Result<()> {
         let player_id = self.current_player_id_can_mut()?;
 
-        self.players[player_id].cleanup();
-
-        self.turn.player_id = self.next_player_id();
         self.turn.phase = self
             .turn
             .phase
             .as_buy_phase_mut()
             .map(|_| STARTING_TURNPHASE)?;
 
+        self.turn.player_id = self.next_player_id();
+        self.players[player_id].cleanup();
+
         Ok(())
     }
 
-    pub fn play_action(&mut self, card: CardKind) -> Result<()> {
+    pub fn play_card(&mut self, card: CardKind) -> Result<()> {
+        match self.turn.phase {
+            TurnPhase::Action(_) => self.play_action(card),
+            TurnPhase::Buy(_) => self.play_treasure(card),
+        }
+    }
+
+    fn play_action(&mut self, card: CardKind) -> Result<()> {
         let player_id = self.current_player_id_can_mut()?;
 
         if self.turn.phase.as_action_phase_mut()?.remaining_actions == 0 {
@@ -99,7 +150,7 @@ impl Arena {
         }
     }
 
-    pub fn play_treasure(&mut self, card: CardKind) -> Result<()> {
+    fn play_treasure(&mut self, card: CardKind) -> Result<()> {
         let player_id = self.current_player_id_can_mut()?;
 
         self.turn.phase.as_buy_phase_mut()?;
@@ -151,22 +202,6 @@ impl Arena {
         } else {
             self.try_resolve(player_id, Some(cards))
         }
-    }
-
-    pub fn hand(&self, player_id: usize) -> Result<&CardVec> {
-        self.player(player_id).map(|player| &player.hand)
-    }
-
-    pub fn discard_pile(&self, player_id: usize) -> Result<&CardVec> {
-        self.player(player_id).map(|player| &player.discard_pile)
-    }
-
-    pub fn play_zone(&self, player_id: usize) -> Result<&CardVec> {
-        self.player(player_id).map(|player| &player.play_zone)
-    }
-
-    pub fn in_deck(&self, player_id: usize, card: CardKind) -> Result<bool> {
-        self.player(player_id).map(|player| player.in_deck(card))
     }
 
     pub(crate) fn move_card(
@@ -260,7 +295,7 @@ impl Arena {
         }
     }
 
-    fn player(&self, player_id: usize) -> Result<&Player> {
+    pub(crate) fn player(&self, player_id: usize) -> Result<&Player> {
         if player_id >= self.players.len() {
             Err(Error::InvalidPlayerId)
         } else {
@@ -337,7 +372,7 @@ mod tests {
                 STARTING_TURNPHASE
                     .as_action_phase_mut()
                     .unwrap()
-                    .as_buy_phase()
+                    .to_buy_phase()
             )
         );
     }

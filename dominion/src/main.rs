@@ -12,12 +12,18 @@ use std::str::FromStr;
 
 fn main() {
     let mut arena = Arena::new(KingdomSet::FirstGame, 2);
-    println!(
-        "Starting game with kingdom {:#?}\n",
-        arena.supply().kingdom_cards
-    );
 
-    while !arena.supply().is_game_over() {
+    {
+        print!("Starting game with ");
+        let mut iter = arena.kingdom();
+        print!("{:?}", iter.next().unwrap());
+        for card in iter {
+            print!(", {:?}", card);
+        }
+        print!("\n");
+    }
+
+    while !arena.is_game_over() {
         println!("\n{:?}\n", arena.turn);
 
         let mut command = String::new();
@@ -39,15 +45,15 @@ fn main() {
 
                 match command {
                     Command::View(location) => {
-                        //println!("{:?}", arena.view(location)?);
+                        println!("{:?}", arena.view(location)?);
                         println!()
                     }
                     Command::EndPhase => {
-                        //let _ = arena.end_phase()?;
+                        let _ = arena.end_phase()?;
                         println!("Starting {:?}", arena.turn);
                     }
                     Command::PlayCard(card) => {
-                        //let _ = arena.play_card(card)?;
+                        let _ = arena.play_card(card)?;
                         println!("Player {} played {:?}", player_id, card);
                     }
                     Command::BuyCard(card) => {

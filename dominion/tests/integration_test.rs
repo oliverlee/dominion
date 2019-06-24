@@ -1,34 +1,35 @@
 extern crate dominion;
 
-use dominion::{Arena, CardKind, KingdomSet, TurnPhase};
+use dominion::{Arena, CardKind, KingdomSet, Location, TurnPhase};
 
 fn skip_turn(arena: &mut Arena, _: usize) {
-    arena.end_action_phase().unwrap();
-    arena.end_buy_phase().unwrap();
+    arena.end_phase().unwrap();
+    arena.end_phase().unwrap();
 }
 
 fn play_all_treasures(arena: &mut Arena, player_id: usize) {
     for &card in [CardKind::Gold, CardKind::Silver, CardKind::Copper].iter() {
         while arena
-            .hand(player_id)
+            .view(Location::Hand { player_id })
             .unwrap()
+            .unwrap_ordered()
             .iter()
             .find(|&&x| x == card)
             .is_some()
         {
-            arena.play_treasure(card).unwrap();
+            arena.play_card(card).unwrap();
         }
     }
 }
 
 fn big_money(arena: &mut Arena, player_id: usize) {
-    arena.end_action_phase().unwrap();
+    arena.end_phase().unwrap();
 
     play_all_treasures(arena, player_id);
     println!(
         "p{} playing: {:?}",
         player_id,
-        arena.play_zone(player_id).unwrap()
+        arena.view(Location::Play { player_id }).unwrap()
     );
 
     arena
@@ -48,7 +49,7 @@ fn big_money(arena: &mut Arena, player_id: usize) {
         })
         .unwrap();
 
-    arena.end_buy_phase().unwrap();
+    arena.end_phase().unwrap();
 }
 
 #[test]
@@ -56,15 +57,22 @@ fn play_big_money() {
     let mut arena = Arena::new(KingdomSet::FirstGame, 2);
     let mut turn_number = 0;
 
-    while !arena.supply().is_game_over() {
+    while !arena.is_game_over() {
         turn_number += 1;
 
         big_money(&mut arena, 0);
         skip_turn(&mut arena, 1);
 
+        let player_id = 0;
         println!("turn {}", turn_number);
-        println!("p1 discard pile: {:?}", arena.discard_pile(0).unwrap());
-        println!("p1 hand: {:?}", arena.hand(0).unwrap());
+        println!(
+            "p1 discard pile: {:?}",
+            arena.view(Location::Discard { player_id }).unwrap()
+        );
+        println!(
+            "p1 hand: {:?}",
+            arena.view(Location::Hand { player_id }).unwrap()
+        );
         println!("");
 
         assert!(turn_number <= 50);

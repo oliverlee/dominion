@@ -353,7 +353,7 @@ mod test {
         assert_eq!(r, Ok(()));
         assert!(arena.actions.is_resolved());
 
-        assert_eq!(arena.hand(1).unwrap().len(), 3);
+        assert_eq!(arena.player(1).unwrap().hand.len(), 3);
 
         // Militia is never played so no resources are used.
         assert_eq!(
