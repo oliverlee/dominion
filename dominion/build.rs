@@ -22,11 +22,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let non_ident_regex = Regex::new(r"[^\w\d]+").unwrap();
 
-    struct CardExt<'a> {
-        card: &'a Card,
-        ident: String,
-    };
-
     let base_card_indices = sets.iter().flat_map(|set| {
         if &set.name == "Dominion 2nd Edition" {
             set.card_indices.iter()
@@ -62,22 +57,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         quote! { CardKind::#ident => #name }
     });
 
-    let action_type_index = types.iter().position(|ty| ty == "Action").unwrap();
+    let is_type_methods = ["Action", "Reaction", "Attack", "Victory", "Treasure"]
+        .iter()
+        .map(|s| {
+            let method = is_type_method(&extended_cards, &types, s);
 
-    let is_action_match_lines = extended_cards.iter().filter_map(|card| {
-        let ident = Ident::new(&card.ident, Span::call_site());
-        let is_action = card
-            .card
-            .type_indices
-            .iter()
-            .any(|&index| index == action_type_index);
-
-        if is_action {
-            Some(quote! { CardKind::#ident => true })
-        } else {
-            None
-        }
-    });
+            quote! { #method }
+        });
 
     let tokens = quote! {
         #[derive(Debug)]
@@ -92,17 +78,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
 
-            fn is_action(&self) -> bool {
-                match *self {
-                    #(#is_action_match_lines,)*
-                    _ => false
-                }
-            }
+            #(#is_type_methods)*
         }
 
     };
 
     // TODO: Base cards are not included
+    // Copper
+    // Silver
+    // Gold
+    // Estate
+    // Duchy
+    // Province
+    // Curse
     file.write_all(tokens.to_string().as_bytes())?;
 
     // Don't forget to flush!
@@ -114,4 +102,49 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+struct CardExt<'a> {
+    card: &'a Card,
+    ident: String,
+}
+
+fn match_lines_by_type<'a>(
+    cards: &'a Vec<CardExt>,
+    types: &Vec<String>,
+    type_name: &str,
+) -> impl Iterator<Item = TokenStream> + 'a {
+    let type_index = types.iter().position(|t| t == type_name).unwrap();
+
+    cards.iter().filter_map(move |card| {
+        let ident = Ident::new(&card.ident, Span::call_site());
+
+        let is_type = card
+            .card
+            .type_indices
+            .iter()
+            .any(|&index| index == type_index);
+
+        if is_type {
+            Some(quote! { CardKind::#ident => true })
+        } else {
+            None
+        }
+    })
+}
+
+fn is_type_method(cards: &Vec<CardExt>, types: &Vec<String>, type_name: &str) -> TokenStream {
+    let is_type_match_lines = match_lines_by_type(cards, types, type_name);
+
+    let method_name = format!("is_{}", type_name.to_lowercase());
+    let method_name = Ident::new(&method_name, Span::call_site());
+
+    quote! {
+        fn #method_name(&self) -> bool {
+            match *self {
+                #(#is_type_match_lines,)*
+                _ => false,
+            }
+        }
+    }
 }
