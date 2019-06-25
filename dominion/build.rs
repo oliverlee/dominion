@@ -1,6 +1,6 @@
-use proc_macro2::*;
+use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::quote;
-use regex::*;
+use regex::Regex;
 use scraper::*;
 use std::fs::File;
 use std::io::prelude::*;
@@ -39,7 +39,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect();
 
     // Verify that the range is contiguous.
-    for (&a, &b) in baseset_card_indices.iter().zip(baseset_card_indices.iter().skip(1)) {
+    for (&a, &b) in baseset_card_indices
+        .iter()
+        .zip(baseset_card_indices.iter().skip(1))
+    {
         assert_eq!(a + 1, b, "card indices are not contiguous");
     }
 
@@ -62,16 +65,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     extended_cards.append(&mut base_cards(&types));
 
-    let declaration_lines = extended_cards
+    let declaration_lines: Vec<_> = extended_cards
         .iter()
-        .map(|card| Ident::new(&card.ident, Span::call_site()));
+        .map(|card| Ident::new(&card.ident, Span::call_site()))
+        .collect();
 
-    let name_match_lines = extended_cards.iter().map(|card| {
-        let ident = Ident::new(&card.ident, Span::call_site());
-        let name = Literal::string(&card.card.name);
+    let ident = &declaration_lines;
 
-        quote! { CardKind::#ident => #name }
-    });
+    let name = extended_cards
+        .iter()
+        .map(|card| Literal::string(&card.card.name));
 
     let is_type_methods = CARD_TYPES.iter().map(|s| {
         let method = is_type_method(&extended_cards, &types, s);
@@ -79,20 +82,49 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         quote! { #method }
     });
 
+    let cost = extended_cards.iter().map(|card| {
+        Literal::u8_suffixed(match card.card.cost {
+            Cost::Copper(x) => x,
+            _ => 0,
+        })
+    });
+
+    let vp_method = victory_points_method(&extended_cards);
+
+    let description = extended_cards.iter().map(|card| &card.card.description);
+
     let tokens = quote! {
-        #[derive(Debug)]
+        #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
         enum CardKind {
-            #(#declaration_lines,)*
+            #(#ident,)*
         }
 
         impl CardKind {
             fn name(&self) -> &'static str {
                 match *self {
-                    #(#name_match_lines,)*
+                    #(CardKind::#ident => #name,)*
                 }
             }
 
             #(#is_type_methods)*
+
+            // Base set only costs copper so just return an int for now.
+            fn cost(&self) -> u8 {
+                match *self {
+                    #(CardKind::#ident => #cost,)*
+                }
+            }
+
+            #vp_method
+
+            // TODO resources
+            // TODO effects
+
+            fn description(&self) -> &'static str {
+                match *self {
+                    #(CardKind::#ident => #description,)*
+                }
+            }
         }
 
     };
@@ -117,6 +149,32 @@ struct CardExt {
     ident: String,
 }
 
+fn victory_points_method(cards: &Vec<CardExt>) -> TokenStream {
+    let victory_regex = Regex::new(r"(-?\d+) Victory Points?").unwrap();
+
+    let victory_point_matches = cards.iter().filter_map(|card| {
+        card.card.description.split('\n').find_map(|line| {
+            // This assumes that the first match is the only match.
+            victory_regex
+                .captures(line)
+                .map(|captures| captures.get(1).unwrap().as_str().parse::<i32>().unwrap())
+                .and_then(|points| {
+                    let ident = Ident::new(&card.ident, Span::call_site());
+                    Some(quote! { CardKind::#ident => #points })
+                })
+        })
+    });
+
+    quote! {
+        fn victory_points(&self) -> i32{
+            match *self {
+                #(#victory_point_matches,)*
+                _ => 0,
+            }
+        }
+    }
+}
+
 fn match_lines_by_type<'a>(
     cards: &'a Vec<CardExt>,
     types: &Vec<String>,
@@ -125,8 +183,6 @@ fn match_lines_by_type<'a>(
     let type_index = types.iter().position(|t| t == type_name).unwrap();
 
     cards.iter().filter_map(move |card| {
-        let ident = Ident::new(&card.ident, Span::call_site());
-
         let is_type = card
             .card
             .type_indices
@@ -134,6 +190,7 @@ fn match_lines_by_type<'a>(
             .any(|&index| index == type_index);
 
         if is_type {
+            let ident = Ident::new(&card.ident, Span::call_site());
             Some(quote! { CardKind::#ident => true })
         } else {
             None
@@ -169,7 +226,7 @@ fn base_cards(types: &Vec<String>) -> Vec<CardExt> {
 
     // Type indices are not set for base cards as they are stored in a separate
     // file from the rest of the cards.
-    let treasure_index =types.iter().position(|s| s == "Treasure").unwrap();
+    let treasure_index = types.iter().position(|s| s == "Treasure").unwrap();
     let victory_index = types.iter().position(|s| s == "Victory").unwrap();
 
     for card in &mut base_cards {
