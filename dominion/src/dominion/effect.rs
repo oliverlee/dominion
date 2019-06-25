@@ -329,6 +329,7 @@ mod test {
 
         let r = arena.try_resolve(0, None);
 
+        // Action effect must still be resolved after 'no-selection'.
         assert_eq!(
             r,
             Err(Error::UnresolvedActionEffect(
@@ -337,9 +338,17 @@ mod test {
         );
         assert!(!arena.actions.is_resolved());
 
-        let discard_cards = vec![CardKind::Estate, CardKind::Copper];
+        let discard_cards: Vec<_> = arena
+            .view(Location::Hand { player_id: 0 })
+            .unwrap()
+            .unwrap_ordered()
+            .iter()
+            .take(2)
+            .cloned()
+            .collect();
         let r = arena.select_cards(0, &discard_cards);
 
+        // Effect fails to resolve due to incorrect player selecting cards.
         assert_eq!(
             r,
             Err(Error::UnresolvedActionEffect(
@@ -348,8 +357,17 @@ mod test {
         );
         assert!(!arena.actions.is_resolved());
 
+        let discard_cards: Vec<_> = arena
+            .view(Location::Hand { player_id: 1 })
+            .unwrap()
+            .unwrap_ordered()
+            .iter()
+            .take(2)
+            .cloned()
+            .collect();
         let r = arena.select_cards(1, &discard_cards);
 
+        // Effect successfully resolves.
         assert_eq!(r, Ok(()));
         assert!(arena.actions.is_resolved());
 
