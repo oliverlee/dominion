@@ -1,3 +1,4 @@
+#![recursion_limit = "128"]
 use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::quote;
 use regex::Regex;
@@ -43,13 +44,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let resources = parse_description(&extended_cards);
 
     let tokens = quote! {
-        #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
-        enum CardKind {
+        use serde::Deserialize;
+        use std::str::FromStr;
+
+        #[derive(Copy, Clone, Debug, Deserialize, Eq, Hash, PartialEq)]
+        pub enum CardKind {
             #(#ident,)*
         }
 
+        impl FromStr for CardKind {
+            type Err = serde_json::error::Error;
+
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                serde_json::from_str(&format!("\"{}\"", s))
+            }
+        }
+
         impl CardKind {
-            fn name(&self) -> &'static str {
+            pub fn name(&self) -> &'static str {
                 match *self {
                     #(CardKind::#ident => #name,)*
                 }
@@ -58,7 +70,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             #(#is_type_methods)*
 
             // Base set only costs copper so just return an int for now.
-            fn cost(&self) -> u8 {
+            pub fn cost(&self) -> u8 {
                 match *self {
                     #(CardKind::#ident => #cost,)*
                 }
@@ -66,9 +78,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             #vp_method
 
-            // TODO effects
-
-            fn description(&self) -> &'static str {
+            pub fn description(&self) -> &'static str {
                 match *self {
                     #(CardKind::#ident => #description,)*
                 }
@@ -89,7 +99,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // let out_dir = Path::new(std::env::var("OUT_DIR")?);
     let out_dir = Path::new(".");
-    let out_path = out_dir.join("data.rs");
+    let out_path = out_dir.join("src");
+    let out_path = out_path.join("dominion");
+    let out_path = out_path.join("card.rs");
+    //let out_path = out_dir.join("data.rs");
 
     let mut file = BufWriter::new(File::create(&out_path)?);
     file.write_all(tokens.to_string().as_bytes())?;
@@ -185,7 +198,7 @@ fn victory_points_method(cards: &Vec<CardExt>) -> TokenStream {
     });
 
     quote! {
-        fn victory_points(&self) -> i32 {
+        pub fn victory_points(&self) -> i32 {
             match *self {
                 #(#victory_point_matches,)*
                 _ => 0,
@@ -224,7 +237,7 @@ fn is_type_method(cards: &Vec<CardExt>, types: &Vec<String>, type_name: &str) ->
     let method_name = Ident::new(&method_name, Span::call_site());
 
     quote! {
-        fn #method_name(&self) -> bool {
+        pub fn #method_name(&self) -> bool {
             match *self {
                 #(#is_type_match_lines,)*
                 _ => false,
@@ -339,7 +352,7 @@ fn parse_description(cards: &Vec<CardExt>) -> TokenStream {
 
     quote! {
         impl CardKind {
-            fn resources(&self) -> Option<CardResources> {
+            pub fn resources(&self) -> Option<&CardResources> {
                 match *self {
                     #(#matches,)*
                     _ => None,

@@ -189,18 +189,20 @@ impl CardActionQueue {
 }
 
 fn add_resources_func(arena: &mut Arena, _: usize, card: CardKind) -> Option<CardActionQueue> {
-    let resources = card.action().unwrap();
-    let action_phase = arena.turn.phase.as_action_phase_mut().unwrap();
+    if let Some(resources) = card.resources() {
+        let action_phase = arena.turn.phase.as_action_phase_mut().unwrap();
 
-    action_phase.remaining_actions += resources.actions;
-    action_phase.remaining_buys += resources.buys;
-    action_phase.remaining_copper += resources.copper;
+        action_phase.remaining_actions += resources.actions;
+        action_phase.remaining_buys += resources.buys;
+        action_phase.remaining_copper += resources.copper;
 
-    let player = arena.current_player_mut();
-    for _ in 0..resources.cards {
-        player.draw_card();
+        let player = arena.current_player_mut();
+        for _ in 0..resources.cards {
+            player.draw_card();
+        }
     }
 
+    // Adding card resources never adds new effects to the queue.
     None
 }
 
