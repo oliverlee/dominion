@@ -9,61 +9,7 @@ use std::path::Path;
 use std::process::Command;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut missing_no: usize = 0;
-
-    let Scrape {
-        sets,
-        types,
-        mut cards,
-    } = serde_json::from_reader(BufReader::new(
-        std::fs::File::open("../dominion.json").unwrap(),
-    ))?;
-
-    // let out_dir = Path::new(std::env::var("OUT_DIR")?);
-    let out_dir = Path::new(".");
-    let out_path = out_dir.join("data.rs");
-    let mut file = BufWriter::new(File::create(&out_path)?);
-
-    let non_ident_regex = Regex::new(r"[^\w\d]+").unwrap();
-
-    let baseset_card_indices: Vec<_> = sets
-        .iter()
-        .flat_map(|set| {
-            if &set.name == "Dominion 2nd Edition" {
-                set.card_indices.iter()
-            } else {
-                [].iter()
-            }
-        })
-        .copied()
-        .collect();
-
-    // Verify that the range is contiguous.
-    for (&a, &b) in baseset_card_indices
-        .iter()
-        .zip(baseset_card_indices.iter().skip(1))
-    {
-        assert_eq!(a + 1, b, "card indices are not contiguous");
-    }
-
-    let mut extended_cards: Vec<_> = cards
-        .drain(std::ops::Range {
-            start: baseset_card_indices.first().unwrap(),
-            end: baseset_card_indices.last().unwrap(),
-        })
-        .map(|card| {
-            let ident = if card.name.is_empty() {
-                missing_no += 1;
-                format!("MissingNo{}", missing_no)
-            } else {
-                non_ident_regex.replace_all(&card.name, "").to_string()
-            };
-
-            CardExt { card, ident }
-        })
-        .collect();
-
-    extended_cards.append(&mut base_cards(&types));
+    let (types, extended_cards) = parse_cardset("Dominion 2nd Edition")?;
 
     let declaration_lines: Vec<_> = extended_cards
         .iter()
@@ -129,10 +75,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     };
 
-    file.write_all(tokens.to_string().as_bytes())?;
+    // let out_dir = Path::new(std::env::var("OUT_DIR")?);
+    let out_dir = Path::new(".");
+    let out_path = out_dir.join("data.rs");
 
-    // Don't forget to flush!
-    drop(file);
+    let mut file = BufWriter::new(File::create(&out_path)?);
+    file.write_all(tokens.to_string().as_bytes())?;
+    drop(file); // Don't forget to flush!
 
     match Command::new("rustfmt").arg(&out_path).status() {
         Ok(status) => assert!(status.success()),
@@ -147,6 +96,64 @@ const CARD_TYPES: &[&'static str] = &["Action", "Reaction", "Attack", "Victory",
 struct CardExt {
     card: Card,
     ident: String,
+}
+
+fn parse_cardset(
+    set_name: &str,
+) -> Result<(Vec<String>, Vec<CardExt>), Box<dyn std::error::Error>> {
+    let mut missing_no: usize = 0;
+
+    let Scrape {
+        sets,
+        types,
+        mut cards,
+    } = serde_json::from_reader(BufReader::new(
+        std::fs::File::open("../dominion.json").unwrap(),
+    ))?;
+
+    let non_ident_regex = Regex::new(r"[^\w\d]+").unwrap();
+
+    let baseset_card_indices: Vec<_> = sets
+        .iter()
+        .flat_map(|set| {
+            if &set.name == set_name {
+                set.card_indices.iter()
+            } else {
+                [].iter()
+            }
+        })
+        .copied()
+        .collect();
+
+    // Verify that the range is contiguous.
+    for (&a, &b) in baseset_card_indices
+        .iter()
+        .zip(baseset_card_indices.iter().skip(1))
+    {
+        assert_eq!(a + 1, b, "card indices are not contiguous");
+    }
+
+    let mut extended_cards: Vec<_> = cards
+        .drain(std::ops::Range {
+            start: baseset_card_indices.first().unwrap(),
+            end: baseset_card_indices.last().unwrap(),
+        })
+        .map(|card| {
+            let ident = if card.name.is_empty() {
+                missing_no += 1;
+                format!("MissingNo{}", missing_no)
+            } else {
+                non_ident_regex.replace_all(&card.name, "").to_string()
+            };
+
+            CardExt { card, ident }
+        })
+        .collect();
+
+    // Add base cards to the set.
+    extended_cards.append(&mut base_cards(&types));
+
+    Ok((types, extended_cards))
 }
 
 fn victory_points_method(cards: &Vec<CardExt>) -> TokenStream {
