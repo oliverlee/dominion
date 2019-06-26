@@ -16,6 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|card| Ident::new(&card.ident, Span::call_site()))
         .collect();
 
+    // Declare a reference so we can reuse the Ident's.
     let ident = &declaration_lines;
 
     let name = extended_cards
@@ -38,6 +39,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let vp_method = victory_points_method(&extended_cards);
 
     let description = extended_cards.iter().map(|card| &card.card.description);
+
+    let resources = parse_description(&extended_cards);
 
     let tokens = quote! {
         #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
@@ -63,7 +66,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             #vp_method
 
-            // TODO resources
             // TODO effects
 
             fn description(&self) -> &'static str {
@@ -73,6 +75,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
+        // TODO: prevent object from being constructed?
+        #[derive(Debug)]
+        pub struct CardResources {
+            pub cards: u8,
+            pub actions: u8,
+            pub buys: u8,
+            pub copper: u8,
+        }
+
+        #resources
     };
 
     // let out_dir = Path::new(std::env::var("OUT_DIR")?);
@@ -173,7 +185,7 @@ fn victory_points_method(cards: &Vec<CardExt>) -> TokenStream {
     });
 
     quote! {
-        fn victory_points(&self) -> i32{
+        fn victory_points(&self) -> i32 {
             match *self {
                 #(#victory_point_matches,)*
                 _ => 0,
@@ -253,4 +265,88 @@ fn base_cards(types: &Vec<String>) -> Vec<CardExt> {
             CardExt { card, ident }
         })
         .collect()
+}
+
+fn parse_description(cards: &Vec<CardExt>) -> TokenStream {
+    // Build resource regexs
+    let other_regex = Regex::new(r"\+(\d+) (Card|Action|Buy)").unwrap();
+    let copper_regex = Regex::new(r"\+\$(\d+)").unwrap();
+
+    let desc_type_delim = "———-";
+
+    let card_matches = cards.iter().filter_map(|card| {
+        let mut captures = card
+            .card
+            .description
+            .split(desc_type_delim)
+            .take(1)
+            .next()
+            .unwrap()
+            .split('\n')
+            .filter_map(|line| {
+                other_regex
+                    .captures(&line)
+                    .or_else(|| copper_regex.captures(&line))
+            })
+            .peekable();
+
+        if let Some(_) = captures.peek() {
+            Some((card, captures))
+        } else {
+            None
+        }
+    });
+
+    let mut matches = Vec::new();
+    let mut const_defs = Vec::new();
+
+    for (card, captures) in card_matches {
+        let mut cards = 0;
+        let mut actions = 0;
+        let mut buys = 0;
+        let mut copper = 0;
+
+        for capture in captures {
+            let value = capture.get(1).unwrap().as_str().parse::<u8>().unwrap();
+            match capture.get(2).map(|s| s.as_str()) {
+                Some("Card") => cards += value,
+                Some("Action") => actions += value,
+                Some("Buy") => buys += value,
+                _ => copper += value,
+            }
+        }
+
+        let ident = Ident::new(&card.ident, Span::call_site());
+
+        let def = Ident::new(
+            &format!("{}_RESOURCES", &card.ident.to_uppercase()),
+            Span::call_site(),
+        );
+
+        matches.push(quote! {
+            CardKind::#ident => Some(#def)
+        });
+
+        const_defs.push(quote! {
+            const #def: &CardResources = &CardResources {
+                cards: #cards,
+                actions: #actions,
+                buys: #buys,
+                copper: #copper,
+            }
+        });
+    }
+
+    quote! {
+        impl CardKind {
+            fn resources(&self) -> Option<CardResources> {
+                match *self {
+                    #(#matches,)*
+                    _ => None,
+                }
+            }
+        }
+
+        #(#const_defs;)*
+    }
 }
