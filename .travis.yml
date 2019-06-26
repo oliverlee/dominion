@@ -8,19 +8,28 @@ cache: cargo
 rust:
   - nightly
 
-# only test master and tagged releases on push
-# always test things that aren't pushes (like PRs)
+env:
+  global:
+    - RUST_BACKTRACE=1
+
+# Always test things that aren't pushes (like PRs)
+# or test master or test tagged releases on push (with versioning)
 if: type != push OR branch = master OR branch =~ /^v\d+\.\d+(\.\d+)?(-\S*)?$/
 
 before_script:
-  - if [ "$TRAVIS_RUST_VERSION" == "nightly" ]; then
-        rustup component add --toolchain nightly rustfmt-preview;
-        which rustfmt || cargo install --force rustfmt-nightly;
-    fi
+  - rustup component add rustfmt --toolchain nightly;
 
 script:
   - cargo build --verbose --all
-  - if [ "$TRAVIS_RUST_VERSION" == "nightly" ]; then
-        cargo fmt -v -- --check;
-    fi
   - cargo test --verbose --all
+
+matrix:
+  include:
+    - name: "lint"
+      os: linux
+      rust: nightly
+      before_script:
+        - rustup component add clippy --toolchain=nightly || cargo install --git https://github.com/rust-lang/rust-clippy/ --force clippy
+      script:
+        - cargo fmt -- --check;
+        - cargo clippy --all-targets --all-features -- -D clippy::all
