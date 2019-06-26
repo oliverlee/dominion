@@ -1,7 +1,5 @@
+use crate::dominion::types::CardPiles;
 use crate::dominion::CardKind;
-use std::collections::HashMap;
-
-type CardPiles = HashMap<CardKind, usize>;
 
 const BASE_CARDS: &'static [(CardKind, &'static dyn Fn(usize) -> usize)] = &[
     (CardKind::Copper, &|n| 60 - 7 * n),
@@ -28,8 +26,8 @@ fn kingdom_card_size(card_id: CardKind, num_players: usize) -> usize {
 
 #[derive(Debug)]
 pub struct Supply {
-    kingdom_cards: CardPiles,
-    base_cards: CardPiles,
+    pub kingdom_cards: CardPiles,
+    pub base_cards: CardPiles,
 }
 
 impl Supply {

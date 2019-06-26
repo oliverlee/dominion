@@ -1,6 +1,6 @@
 use crate::dominion::{Error, Result};
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum TurnPhase {
     Action(ActionPhase),
     Buy(BuyPhase),
@@ -22,7 +22,7 @@ impl TurnPhase {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct ActionPhase {
     pub remaining_actions: i32,
     pub remaining_buys: i32,
@@ -30,7 +30,7 @@ pub struct ActionPhase {
 }
 
 impl ActionPhase {
-    pub fn as_buy_phase(&self) -> BuyPhase {
+    pub fn to_buy_phase(&self) -> BuyPhase {
         BuyPhase {
             remaining_buys: self.remaining_buys,
             remaining_copper: self.remaining_copper,
@@ -38,7 +38,7 @@ impl ActionPhase {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct BuyPhase {
     pub remaining_buys: i32,
     pub remaining_copper: i32,

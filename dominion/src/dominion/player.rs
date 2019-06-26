@@ -67,6 +67,7 @@ impl Player {
             .iter()
             .chain(self.hand.iter())
             .chain(self.play_zone.iter())
+            .chain(self.stage.iter())
             .chain(self.discard_pile.iter())
             .any(|&x| x == card)
     }

@@ -1,84 +1,77 @@
 #![feature(vec_remove_item)]
+#![feature(result_map_or_else)]
 
 mod dominion;
 
-use dominion::turn_phase::TurnPhase;
-use dominion::{Arena, CardKind, KingdomSet};
+use crate::dominion::command;
+use crate::dominion::command::{Command, ParseCommandError};
+use crate::dominion::turn_phase::TurnPhase;
+use crate::dominion::{Arena, CardKind, KingdomSet, Result};
+use std::convert::TryInto;
+use std::str::FromStr;
 
 fn main() {
     let mut arena = Arena::new(KingdomSet::FirstGame, 2);
-    println!("supply {:#?}", arena.supply());
 
-    println!("p1 hand: {:?}", arena.hand(0).unwrap());
-    println!("p1 discard pile: {:?}", arena.discard_pile(0).unwrap());
-    println!("");
-
-    println!("p1 playing big money strat");
-    println!("");
-
-    let mut turn_number = 0;
-    while !arena.supply().is_game_over() {
-        turn_number += 1;
-
-        big_money(&mut arena, 0);
-        skip_turn(&mut arena, 1);
-
-        println!("turn {}", turn_number);
-        println!("p1 discard pile: {:?}", arena.discard_pile(0).unwrap());
-        println!("p1 hand: {:?}", arena.hand(0).unwrap());
-        println!("");
-
-        assert!(turn_number <= 50);
+    {
+        print!("Starting game with ");
+        let mut iter = arena.kingdom();
+        print!("{:?}", iter.next().unwrap());
+        for card in iter {
+            print!(", {:?}", card);
+        }
+        print!("\n");
     }
 
-    println!("arena: {:#?}", arena);
-}
+    while !arena.is_game_over() {
+        println!("\n{:?}\n", arena.turn);
 
-fn skip_turn(arena: &mut Arena, _: usize) {
-    arena.end_action_phase().unwrap();
-    arena.end_buy_phase().unwrap();
-}
+        let mut command = String::new();
+        std::io::stdin().read_line(&mut command).unwrap();
 
-fn play_all_treasures(arena: &mut Arena, player_id: usize) {
-    for &card in [CardKind::Gold, CardKind::Silver, CardKind::Copper].iter() {
-        while arena
-            .hand(player_id)
-            .unwrap()
-            .iter()
-            .find(|&&x| x == card)
-            .is_some()
-        {
-            arena.play_treasure(card).unwrap();
+        let result: Result<()> = command.parse().map_or_else(
+            |e| {
+                if let ParseCommandError::InvalidCommand = e {
+                    println!("{}", command::help());
+                } else {
+                    println!("Error {}", e);
+                }
+
+                Ok(())
+            },
+            |command| {
+                // TODO: allow non-current player to select cards
+                let player_id = arena.turn.player_id;
+
+                match command {
+                    Command::View(location) => {
+                        println!("{:?}", arena.view(location)?);
+                        println!()
+                    }
+                    Command::EndPhase => {
+                        let _ = arena.end_phase()?;
+                        println!("Starting {:?}", arena.turn);
+                    }
+                    Command::PlayCard(card) => {
+                        let _ = arena.play_card(card)?;
+                        println!("Player {} played {:?}", player_id, card);
+                    }
+                    Command::BuyCard(card) => {
+                        let _ = arena.buy_card(card)?;
+                        println!("Player {} bought {:?}", player_id, card);
+                    }
+                    Command::SelectCards(cards) => {
+                        let _ = arena.select_cards(player_id, &cards)?;
+                        println!("Player {} selected {:?}", player_id, &cards);
+                    }
+                };
+
+                Ok(())
+            },
+        );
+
+        if let Err(e) = result {
+            println!("Error: {:?}", e);
         }
     }
-}
-
-fn big_money(arena: &mut Arena, player_id: usize) {
-    arena.end_action_phase().unwrap();
-
-    play_all_treasures(arena, player_id);
-    println!(
-        "p{} playing: {:?}",
-        player_id,
-        arena.play_zone(player_id).unwrap()
-    );
-
-    arena
-        .buy_card(CardKind::Province)
-        .map_err(|_| arena.buy_card(CardKind::Gold))
-        .map_err(|_| arena.buy_card(CardKind::Silver))
-        .or_else(|_| -> Result<(), ()> {
-            match arena.turn_phase() {
-                TurnPhase::Action(_) => {
-                    panic!("Expected TurnPhase::Buy but got TurnPhase::Action.")
-                }
-                TurnPhase::Buy(buy_phase) => {
-                    assert!(buy_phase.remaining_copper < CardKind::Silver.cost());
-                    Ok(())
-                }
-            }
-        })
-        .unwrap();
-
-    arena.end_buy_phase().unwrap();
 }
