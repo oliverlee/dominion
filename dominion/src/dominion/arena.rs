@@ -131,7 +131,7 @@ impl Arena {
         if self.turn.phase.as_action_phase_mut()?.remaining_actions == 0 {
             Err(Error::NoMoreActions)
         } else {
-            if card.action().is_some() {
+            if card.is_action() {
                 self.move_card(
                     Location::Hand { player_id },
                     Location::Play { player_id },
@@ -155,17 +155,21 @@ impl Arena {
 
         self.turn.phase.as_buy_phase_mut()?;
 
-        let additional_copper = card.treasure().ok_or_else(|| Error::InvalidCardChoice)?;
+        if card.is_treasure() {
+            let additional_copper = card.resources().unwrap().copper;
 
-        self.move_card(
-            Location::Hand { player_id },
-            Location::Play { player_id },
-            CardSpecifier::Card(card),
-        )?;
+            self.move_card(
+                Location::Hand { player_id },
+                Location::Play { player_id },
+                CardSpecifier::Card(card),
+            )?;
 
-        self.turn.phase.as_buy_phase_mut().unwrap().remaining_copper += additional_copper;
+            self.turn.phase.as_buy_phase_mut().unwrap().remaining_copper += additional_copper;
 
-        Ok(())
+            Ok(())
+        } else {
+            Err(Error::InvalidCardChoice)
+        }
     }
 
     pub fn buy_card(&mut self, card: CardKind) -> Result<()> {

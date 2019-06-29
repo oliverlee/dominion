@@ -12,15 +12,14 @@ const BASE_CARDS: &'static [(CardKind, &'static dyn Fn(usize) -> usize)] = &[
 ];
 
 fn kingdom_card_size(card_id: CardKind, num_players: usize) -> usize {
-    match card_id.victory_points() {
-        Some(_) => {
-            if num_players > 2 {
-                12
-            } else {
-                8
-            }
+    if card_id.is_victory() {
+        if num_players > 2 {
+            12
+        } else {
+            8
         }
-        None => 10,
+    } else {
+        10
     }
 }
 
@@ -109,7 +108,7 @@ mod tests {
     #[test]
     fn test_kingdom_card_size_regular_card() {
         let regular_card = CardKind::Cellar;
-        assert!(regular_card.victory_points().is_none());
+        assert!(!regular_card.is_victory());
 
         for num_players in 2..5 {
             assert_eq!(kingdom_card_size(regular_card, num_players), 10);
@@ -119,7 +118,7 @@ mod tests {
     #[test]
     fn test_kingdom_card_size_victory_card() {
         let victory_card = CardKind::Estate;
-        assert!(victory_card.victory_points().is_some());
+        assert!(victory_card.is_victory());
 
         assert_eq!(kingdom_card_size(victory_card, 2), 8);
         assert_eq!(kingdom_card_size(victory_card, 3), 12);

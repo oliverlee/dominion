@@ -19,8 +19,8 @@ before_script:
     fi
 
 script:
+  - cargo build --verbose --all
   - if [ "$TRAVIS_RUST_VERSION" == "nightly" ]; then
         cargo fmt -v -- --check;
     fi
-  - cargo build --verbose --all
   - cargo test --verbose --all

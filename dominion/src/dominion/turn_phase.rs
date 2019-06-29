@@ -24,9 +24,9 @@ impl TurnPhase {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct ActionPhase {
-    pub remaining_actions: i32,
-    pub remaining_buys: i32,
-    pub remaining_copper: i32,
+    pub remaining_actions: u8,
+    pub remaining_buys: u8,
+    pub remaining_copper: u8,
 }
 
 impl ActionPhase {
@@ -40,6 +40,6 @@ impl ActionPhase {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct BuyPhase {
-    pub remaining_buys: i32,
-    pub remaining_copper: i32,
+    pub remaining_buys: u8,
+    pub remaining_copper: u8,
 }
