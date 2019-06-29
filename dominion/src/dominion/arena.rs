@@ -16,7 +16,7 @@ pub struct Arena {
     players: Vec<Player>,
     turn: Turn,
     current_player_id: usize,
-    actions: CardActionQueue,
+    actions: Option<CardActionQueue>,
 }
 
 impl Arena {
@@ -27,7 +27,7 @@ impl Arena {
             players: (0..num_players).map(|_| Player::new()).collect(),
             turn: Turn::new(),
             current_player_id: 0,
-            actions: CardActionQueue::new(),
+            actions: Some(CardActionQueue::new()),
         };
 
         arena.start_game();
@@ -124,7 +124,7 @@ impl Arena {
                     CardSpecifier::Card(card),
                 )?;
                 self.turn.as_action_phase_mut().unwrap().remaining_actions -= 1;
-                self.actions.add_card(card);
+                self.actions.as_mut().unwrap().add_card(card);
                 self.try_resolve(player_id, None)
             } else {
                 Err(Error::InvalidCardChoice)
@@ -242,23 +242,22 @@ impl Arena {
     }
 
     fn try_resolve(&mut self, player_id: usize, selected_cards: Option<&CardVec>) -> Result<()> {
-        let mut temp_effect = CardActionQueue::new();
+        let mut temp: Option<CardActionQueue> = None;
 
         // The Arena contains the ActionEffect to track the state of resolving an action card.
         // However, the ActionEffect::resolve method requires a mutable reference to the
         // Arena as it will need to modify the game state. To prevent more than one mutable borrow,
-        // we create a second ActionEffect and swap them.
-        std::mem::swap(&mut temp_effect, &mut self.actions);
+        // we swap Some(CardActionQueue) with None.
+        std::mem::swap(&mut temp, &mut self.actions);
 
-        let r = temp_effect.resolve(self, player_id, selected_cards);
+        let result = temp
+            .as_mut()
+            .unwrap()
+            .resolve(self, player_id, selected_cards);
 
-        if !self.actions.is_resolved() {
-            panic!("Arena::actions cannot be modified while resolving the temporary effect stack.");
-        }
+        std::mem::swap(&mut temp, &mut self.actions);
 
-        std::mem::swap(&mut temp_effect, &mut self.actions);
-
-        r
+        result
     }
 
     fn location(&mut self, loc: Location) -> &mut CardVec {
@@ -310,11 +309,15 @@ impl Arena {
     }
 
     fn check_actions_resolved(&mut self) -> Result<()> {
-        if self.actions.is_resolved() {
+        if self.actions.as_ref().unwrap().is_resolved() {
             Ok(())
         } else {
             Err(Error::UnresolvedActionEffect(
-                self.actions.condition().unwrap_or(""),
+                self.actions
+                    .as_ref()
+                    .unwrap()
+                    .resolve_condition()
+                    .unwrap_or(""),
             ))
         }
     }
@@ -366,12 +369,7 @@ mod tests {
         assert!(r.is_ok());
         assert_eq!(
             arena.turn,
-            Turn::Buy(
-                Turn::new()
-                    .as_action_phase_mut()
-                    .unwrap()
-                    .to_buy_phase()
-            )
+            Turn::Buy(Turn::new().as_action_phase_mut().unwrap().to_buy_phase())
         );
     }
 
