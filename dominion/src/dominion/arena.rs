@@ -1,4 +1,4 @@
-use crate::dominion::turn_phase::{ActionPhase, BuyPhase, TurnPhase};
+use crate::dominion::turn::{self, Turn};
 use crate::dominion::types::{CardSpecifier, CardVec, Error, Location, LocationView, Result};
 use crate::dominion::{CardKind, KingdomSet};
 
@@ -9,24 +9,13 @@ use self::effect::CardActionQueue;
 use self::player::Player;
 use self::supply::Supply;
 
-const STARTING_TURNPHASE: TurnPhase = TurnPhase::Action(ActionPhase {
-    remaining_actions: 1,
-    remaining_buys: 1,
-    remaining_copper: 0,
-});
-
-#[derive(Debug)]
-pub(crate) struct Turn {
-    pub(crate) player_id: usize,
-    pub(crate) phase: TurnPhase,
-}
-
 #[derive(Debug)]
 pub struct Arena {
     supply: Supply,
+    trash: CardVec,
     pub(crate) players: Vec<Player>,
     pub(crate) turn: Turn,
-    trash: CardVec,
+    pub(crate) current_player_id: usize,
     pub(crate) actions: CardActionQueue,
 }
 
@@ -34,12 +23,10 @@ impl Arena {
     pub fn new(kingdom_set: KingdomSet, num_players: usize) -> Arena {
         let mut arena = Arena {
             supply: Supply::new(kingdom_set.cards(), num_players),
-            players: (0..num_players).map(|_| Player::new()).collect(),
-            turn: Turn {
-                player_id: 0,
-                phase: STARTING_TURNPHASE,
-            },
             trash: CardVec::new(),
+            players: (0..num_players).map(|_| Player::new()).collect(),
+            turn: Turn::new(),
+            current_player_id: 0,
             actions: CardActionQueue::new(),
         };
 
@@ -87,21 +74,21 @@ impl Arena {
         self.player(player_id).map(|player| player.in_deck(card))
     }
 
-    pub fn turn_phase(&self) -> TurnPhase {
-        self.turn.phase
+    pub fn turn(&self) -> Turn {
+        self.turn
     }
 
-    pub fn end_phase(&mut self) -> Result<()> {
-        match self.turn.phase {
-            TurnPhase::Action(_) => self.end_action_phase(),
-            TurnPhase::Buy(_) => self.end_buy_phase(),
+    pub fn end_turn_phase(&mut self) -> Result<()> {
+        match self.turn {
+            Turn::Action(_) => self.end_action_phase(),
+            Turn::Buy(_) => self.end_buy_phase(),
         }
     }
 
     fn end_action_phase(&mut self) -> Result<()> {
         let _ = self.current_player_id_can_mut()?;
 
-        self.turn.phase = TurnPhase::Buy(self.turn.phase.as_action_phase_mut()?.to_buy_phase());
+        self.turn = Turn::Buy(self.turn.as_action_phase_mut()?.to_buy_phase());
 
         Ok(())
     }
@@ -109,29 +96,24 @@ impl Arena {
     fn end_buy_phase(&mut self) -> Result<()> {
         let player_id = self.current_player_id_can_mut()?;
 
-        self.turn.phase = self
-            .turn
-            .phase
-            .as_buy_phase_mut()
-            .map(|_| STARTING_TURNPHASE)?;
-
-        self.turn.player_id = self.next_player_id();
+        self.turn = Turn::new();
+        self.current_player_id = self.next_player_id();
         self.players[player_id].cleanup();
 
         Ok(())
     }
 
     pub fn play_card(&mut self, card: CardKind) -> Result<()> {
-        match self.turn.phase {
-            TurnPhase::Action(_) => self.play_action(card),
-            TurnPhase::Buy(_) => self.play_treasure(card),
+        match self.turn {
+            Turn::Action(_) => self.play_action(card),
+            Turn::Buy(_) => self.play_treasure(card),
         }
     }
 
     fn play_action(&mut self, card: CardKind) -> Result<()> {
         let player_id = self.current_player_id_can_mut()?;
 
-        if self.turn.phase.as_action_phase_mut()?.remaining_actions == 0 {
+        if self.turn.as_action_phase_mut()?.remaining_actions == 0 {
             Err(Error::NoMoreActions)
         } else {
             if card.is_action() {
@@ -140,11 +122,7 @@ impl Arena {
                     Location::Play { player_id },
                     CardSpecifier::Card(card),
                 )?;
-                self.turn
-                    .phase
-                    .as_action_phase_mut()
-                    .unwrap()
-                    .remaining_actions -= 1;
+                self.turn.as_action_phase_mut().unwrap().remaining_actions -= 1;
                 self.actions.add_card(card);
                 self.try_resolve(player_id, None)
             } else {
@@ -156,7 +134,7 @@ impl Arena {
     fn play_treasure(&mut self, card: CardKind) -> Result<()> {
         let player_id = self.current_player_id_can_mut()?;
 
-        self.turn.phase.as_buy_phase_mut()?;
+        self.turn.as_buy_phase_mut()?;
 
         if card.is_treasure() {
             let additional_copper = card.resources().unwrap().copper;
@@ -167,7 +145,7 @@ impl Arena {
                 CardSpecifier::Card(card),
             )?;
 
-            self.turn.phase.as_buy_phase_mut().unwrap().remaining_copper += additional_copper;
+            self.turn.as_buy_phase_mut().unwrap().remaining_copper += additional_copper;
 
             Ok(())
         } else {
@@ -178,10 +156,10 @@ impl Arena {
     pub fn buy_card(&mut self, card: CardKind) -> Result<()> {
         let player_id = self.current_player_id_can_mut()?;
 
-        let &mut BuyPhase {
+        let &mut turn::BuyPhase {
             remaining_buys,
             remaining_copper,
-        } = self.turn.phase.as_buy_phase_mut()?;
+        } = self.turn.as_buy_phase_mut()?;
 
         if remaining_buys == 0 {
             Err(Error::NoMoreBuys)
@@ -194,7 +172,7 @@ impl Arena {
                 CardSpecifier::Card(card),
             )?;
 
-            let buy_phase = self.turn.phase.as_buy_phase_mut().unwrap();
+            let buy_phase = self.turn.as_buy_phase_mut().unwrap();
             buy_phase.remaining_buys -= 1;
             buy_phase.remaining_copper -= card.cost();
 
@@ -311,20 +289,20 @@ impl Arena {
     }
 
     pub(crate) fn current_player(&self) -> &Player {
-        &self.players[self.turn.player_id]
+        &self.players[self.current_player_id]
     }
 
     pub(crate) fn current_player_mut(&mut self) -> &mut Player {
-        &mut self.players[self.turn.player_id]
+        &mut self.players[self.current_player_id]
     }
 
     pub(crate) fn next_player_id(&self) -> usize {
-        (self.turn.player_id + 1) % self.players.len()
+        (self.current_player_id + 1) % self.players.len()
     }
 
     fn current_player_id_can_mut(&mut self) -> Result<usize> {
         if self.actions.is_resolved() {
-            Ok(self.turn.player_id)
+            Ok(self.current_player_id)
         } else {
             Err(Error::UnresolvedActionEffect(
                 self.actions.condition().unwrap_or(""),
@@ -364,7 +342,7 @@ mod tests {
     fn end_action_phase() {
         let mut arena = Arena::new(KingdomSet::FirstGame, 2);
 
-        arena.turn.phase = TurnPhase::Action(ActionPhase {
+        arena.turn = Turn::Action(turn::ActionPhase {
             remaining_actions: 1,
             remaining_buys: 1,
             remaining_copper: 0,
@@ -374,9 +352,9 @@ mod tests {
 
         assert!(r.is_ok());
         assert_eq!(
-            arena.turn.phase,
-            TurnPhase::Buy(
-                STARTING_TURNPHASE
+            arena.turn,
+            Turn::Buy(
+                Turn::new()
                     .as_action_phase_mut()
                     .unwrap()
                     .to_buy_phase()
@@ -388,7 +366,7 @@ mod tests {
     fn end_buy_phase() {
         let mut arena = Arena::new(KingdomSet::FirstGame, 2);
 
-        arena.turn.phase = TurnPhase::Buy(BuyPhase {
+        arena.turn = Turn::Buy(turn::BuyPhase {
             remaining_buys: 1,
             remaining_copper: 0,
         });
@@ -396,8 +374,8 @@ mod tests {
         let r = arena.end_buy_phase();
 
         assert!(r.is_ok());
-        assert_eq!(arena.turn.phase, STARTING_TURNPHASE);
-        assert_eq!(arena.turn.player_id, 1);
+        assert_eq!(arena.turn, Turn::new());
+        assert_eq!(arena.current_player_id, 1);
 
         assert_eq!(arena.player(0).unwrap().hand.len(), 5);
         assert_eq!(arena.player(0).unwrap().discard_pile.len(), 5);
@@ -408,7 +386,7 @@ mod tests {
     fn buy_card_copper() {
         let mut arena = Arena::new(KingdomSet::FirstGame, 2);
 
-        arena.turn.phase = TurnPhase::Buy(BuyPhase {
+        arena.turn = Turn::Buy(turn::BuyPhase {
             remaining_buys: 1,
             remaining_copper: 0,
         });
@@ -427,8 +405,8 @@ mod tests {
             copper_supply - 1
         );
         assert_eq!(
-            arena.turn.phase,
-            TurnPhase::Buy(BuyPhase {
+            arena.turn,
+            Turn::Buy(turn::BuyPhase {
                 remaining_buys: 0,
                 remaining_copper: 0,
             })
@@ -439,7 +417,7 @@ mod tests {
     fn buy_card_market() {
         let mut arena = Arena::new(KingdomSet::FirstGame, 2);
 
-        arena.turn.phase = TurnPhase::Buy(BuyPhase {
+        arena.turn = Turn::Buy(turn::BuyPhase {
             remaining_buys: 1,
             remaining_copper: 5,
         });
@@ -458,8 +436,8 @@ mod tests {
             market_supply - 1
         );
         assert_eq!(
-            arena.turn.phase,
-            TurnPhase::Buy(BuyPhase {
+            arena.turn,
+            Turn::Buy(turn::BuyPhase {
                 remaining_buys: 0,
                 remaining_copper: 0,
             })
@@ -470,7 +448,7 @@ mod tests {
     fn buy_card_no_remaining_buys() {
         let mut arena = Arena::new(KingdomSet::FirstGame, 2);
 
-        arena.turn.phase = TurnPhase::Buy(BuyPhase {
+        arena.turn = Turn::Buy(turn::BuyPhase {
             remaining_buys: 0,
             remaining_copper: 100,
         });
@@ -486,7 +464,7 @@ mod tests {
     fn buy_card_not_enough_copper() {
         let mut arena = Arena::new(KingdomSet::FirstGame, 2);
 
-        arena.turn.phase = TurnPhase::Buy(BuyPhase {
+        arena.turn = Turn::Buy(turn::BuyPhase {
             remaining_buys: 100,
             remaining_copper: 0,
         });
@@ -502,7 +480,7 @@ mod tests {
     fn buy_card_not_in_kingdom() {
         let mut arena = Arena::new(KingdomSet::FirstGame, 2);
 
-        arena.turn.phase = TurnPhase::Buy(BuyPhase {
+        arena.turn = Turn::Buy(turn::BuyPhase {
             remaining_buys: 1,
             remaining_copper: 100,
         });
@@ -518,7 +496,7 @@ mod tests {
     fn play_action_not_in_hand() {
         let mut arena = Arena::new(KingdomSet::FirstGame, 2);
 
-        arena.turn.phase = TurnPhase::Action(ActionPhase {
+        arena.turn = Turn::Action(turn::ActionPhase {
             remaining_actions: 1,
             remaining_buys: 0,
             remaining_copper: 0,
@@ -534,7 +512,7 @@ mod tests {
     fn play_action_smithy_during_action_phase() {
         let mut arena = Arena::new(KingdomSet::FirstGame, 2);
 
-        arena.turn.phase = TurnPhase::Action(ActionPhase {
+        arena.turn = Turn::Action(turn::ActionPhase {
             remaining_actions: 1,
             remaining_buys: 0,
             remaining_copper: 0,
@@ -547,8 +525,8 @@ mod tests {
         assert!(r.is_ok());
         assert_eq!(arena.player(0).unwrap().hand.len(), 3);
         assert_eq!(
-            arena.turn.phase,
-            TurnPhase::Action(ActionPhase {
+            arena.turn,
+            Turn::Action(turn::ActionPhase {
                 remaining_actions: 0,
                 remaining_buys: 0,
                 remaining_copper: 0
@@ -560,7 +538,7 @@ mod tests {
     fn play_action_smithy_during_buy_phase() {
         let mut arena = Arena::new(KingdomSet::FirstGame, 2);
 
-        arena.turn.phase = TurnPhase::Buy(BuyPhase {
+        arena.turn = Turn::Buy(turn::BuyPhase {
             remaining_buys: 1,
             remaining_copper: 0,
         });
@@ -578,7 +556,7 @@ mod tests {
     fn play_treasure_gold_during_action_phase() {
         let mut arena = Arena::new(KingdomSet::FirstGame, 2);
 
-        arena.turn.phase = TurnPhase::Action(ActionPhase {
+        arena.turn = Turn::Action(turn::ActionPhase {
             remaining_actions: 1,
             remaining_buys: 0,
             remaining_copper: 0,
@@ -597,7 +575,7 @@ mod tests {
     fn play_treasuse_gold_during_buy_phase() {
         let mut arena = Arena::new(KingdomSet::FirstGame, 2);
 
-        arena.turn.phase = TurnPhase::Buy(BuyPhase {
+        arena.turn = Turn::Buy(turn::BuyPhase {
             remaining_buys: 1,
             remaining_copper: 0,
         });
@@ -609,8 +587,8 @@ mod tests {
         assert!(r.is_ok());
         assert_eq!(arena.player(0).unwrap().hand.len(), 0);
         assert_eq!(
-            arena.turn.phase,
-            TurnPhase::Buy(BuyPhase {
+            arena.turn,
+            Turn::Buy(turn::BuyPhase {
                 remaining_buys: 1,
                 remaining_copper: 3
             })

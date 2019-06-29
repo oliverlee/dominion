@@ -1,10 +1,10 @@
 extern crate dominion;
 
-use dominion::{Arena, CardKind, KingdomSet, Location, TurnPhase};
+use dominion::{Arena, CardKind, KingdomSet, Location, Turn};
 
 fn skip_turn(arena: &mut Arena, _: usize) {
-    arena.end_phase().unwrap();
-    arena.end_phase().unwrap();
+    arena.end_turn_phase().unwrap();
+    arena.end_turn_phase().unwrap();
 }
 
 fn play_all_treasures(arena: &mut Arena, player_id: usize) {
@@ -23,7 +23,7 @@ fn play_all_treasures(arena: &mut Arena, player_id: usize) {
 }
 
 fn big_money(arena: &mut Arena, player_id: usize) {
-    arena.end_phase().unwrap();
+    arena.end_turn_phase().unwrap();
 
     play_all_treasures(arena, player_id);
     println!(
@@ -37,11 +37,9 @@ fn big_money(arena: &mut Arena, player_id: usize) {
         .map_err(|_| arena.buy_card(CardKind::Gold))
         .map_err(|_| arena.buy_card(CardKind::Silver))
         .or_else(|_| -> Result<(), ()> {
-            match arena.turn_phase() {
-                TurnPhase::Action(_) => {
-                    panic!("Expected TurnPhase::Buy but got TurnPhase::Action.")
-                }
-                TurnPhase::Buy(buy_phase) => {
+            match arena.turn() {
+                Turn::Action(_) => panic!("expected Turn::Buy but got Turn::Action."),
+                Turn::Buy(buy_phase) => {
                     assert!(buy_phase.remaining_copper < CardKind::Silver.cost());
                     Ok(())
                 }
@@ -49,7 +47,7 @@ fn big_money(arena: &mut Arena, player_id: usize) {
         })
         .unwrap();
 
-    arena.end_phase().unwrap();
+    arena.end_turn_phase().unwrap();
 }
 
 #[test]

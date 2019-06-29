@@ -178,7 +178,7 @@ impl CardActionQueue {
             }
 
             // Don't use the same selected cards in subsequent spawned action card effects.
-            player_id = arena.turn.player_id;
+            player_id = arena.current_player_id;
             selected_cards = None;
             self.actions.pop_front();
         }
@@ -189,7 +189,7 @@ impl CardActionQueue {
 
 fn add_resources_func(arena: &mut Arena, _: usize, card: CardKind) -> Option<CardActionQueue> {
     if let Some(resources) = card.resources() {
-        let action_phase = arena.turn.phase.as_action_phase_mut().unwrap();
+        let action_phase = arena.turn.as_action_phase_mut().unwrap();
 
         action_phase.remaining_actions += resources.actions;
         action_phase.remaining_buys += resources.buys;
@@ -216,7 +216,7 @@ fn militia_effect(arena: &mut Arena, player_id: usize, cards: &CardVec) -> Effec
     let error = Error::UnresolvedActionEffect(&MILITIA_EFFECT.description());
 
     // TODO: Handle games with more than 2 players.
-    if player_id == arena.turn.player_id {
+    if player_id == arena.current_player_id {
         return Err(Error::UnresolvedActionEffect(&MILITIA_EFFECT.description()));
     }
 
@@ -271,7 +271,7 @@ fn throne_room_effect(arena: &mut Arena, _: usize, cards: &CardVec) -> EffectRes
     }
 
     if let Some(card) = card_index {
-        let player_id = arena.turn.player_id;
+        let player_id = arena.current_player_id;
 
         arena
             .move_card(
@@ -293,7 +293,7 @@ fn throne_room_effect(arena: &mut Arena, _: usize, cards: &CardVec) -> EffectRes
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::dominion::turn_phase::{ActionPhase, TurnPhase};
+    use crate::dominion::turn::{self, Turn};
     use crate::dominion::{Arena, KingdomSet};
 
     #[test]
@@ -314,8 +314,8 @@ mod test {
 
         // Market is never played so no resources are used.
         assert_eq!(
-            arena.turn_phase(),
-            TurnPhase::Action(ActionPhase {
+            arena.turn(),
+            Turn::Action(turn::ActionPhase {
                 remaining_actions: 2,
                 remaining_buys: 2,
                 remaining_copper: 1,
@@ -376,8 +376,8 @@ mod test {
 
         // Militia is never played so no resources are used.
         assert_eq!(
-            arena.turn_phase(),
-            TurnPhase::Action(ActionPhase {
+            arena.turn(),
+            Turn::Action(turn::ActionPhase {
                 remaining_actions: 1,
                 remaining_buys: 1,
                 remaining_copper: 2,
@@ -408,8 +408,8 @@ mod test {
 
         assert_eq!(arena.current_player().hand.len(), 5);
         assert_eq!(
-            arena.turn_phase(),
-            TurnPhase::Action(ActionPhase {
+            arena.turn(),
+            Turn::Action(turn::ActionPhase {
                 remaining_actions: 1,
                 remaining_buys: 1,
                 remaining_copper: 0,
@@ -424,8 +424,8 @@ mod test {
 
         assert_eq!(arena.current_player().hand.len(), 6);
         assert_eq!(
-            arena.turn_phase(),
-            TurnPhase::Action(ActionPhase {
+            arena.turn(),
+            Turn::Action(turn::ActionPhase {
                 remaining_actions: 1,
                 remaining_buys: 1,
                 remaining_copper: 0,
@@ -444,8 +444,8 @@ mod test {
 
         // Throne Room and Smithy are never played normally so no resources are used.
         assert_eq!(
-            arena.turn_phase(),
-            TurnPhase::Action(ActionPhase {
+            arena.turn(),
+            Turn::Action(turn::ActionPhase {
                 remaining_actions: 1,
                 remaining_buys: 1,
                 remaining_copper: 0,
@@ -460,8 +460,8 @@ mod test {
 
         assert_eq!(arena.current_player().hand.len(), 6);
         assert_eq!(
-            arena.turn_phase(),
-            TurnPhase::Action(ActionPhase {
+            arena.turn(),
+            Turn::Action(turn::ActionPhase {
                 remaining_actions: 1,
                 remaining_buys: 1,
                 remaining_copper: 0,
@@ -500,8 +500,8 @@ mod test {
 
         // Throne Room and Militia are never played normally so no resources are used.
         assert_eq!(
-            arena.turn_phase(),
-            TurnPhase::Action(ActionPhase {
+            arena.turn(),
+            Turn::Action(turn::ActionPhase {
                 remaining_actions: 1,
                 remaining_buys: 1,
                 remaining_copper: 4,
