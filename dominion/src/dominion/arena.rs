@@ -1,10 +1,13 @@
-use crate::dominion::effect::CardActionQueue;
-use crate::dominion::player::Player;
 use crate::dominion::turn_phase::{ActionPhase, BuyPhase, TurnPhase};
 use crate::dominion::types::{CardSpecifier, CardVec, Error, Location, LocationView, Result};
-use crate::dominion::CardKind;
-use crate::dominion::KingdomSet;
-use crate::dominion::Supply;
+use crate::dominion::{CardKind, KingdomSet};
+
+mod effect;
+mod player;
+mod supply;
+use self::effect::CardActionQueue;
+use self::player::Player;
+use self::supply::Supply;
 
 const STARTING_TURNPHASE: TurnPhase = TurnPhase::Action(ActionPhase {
     remaining_actions: 1,

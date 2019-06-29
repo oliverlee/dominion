@@ -1,6 +1,5 @@
 use crate::dominion::types::{CardSpecifier, CardVec, Error, Location, Result};
-use crate::dominion::Arena;
-use crate::dominion::CardKind;
+use crate::dominion::{Arena, CardKind};
 use std::collections::VecDeque;
 
 enum Effect {
