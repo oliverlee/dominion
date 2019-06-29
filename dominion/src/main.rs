@@ -23,7 +23,7 @@ fn main() {
     }
 
     while !arena.is_game_over() {
-        println!("\n{:?}\n", arena.turn);
+        println!("\n{:?}\n", arena.turn());
 
         let mut command = String::new();
         std::io::stdin().read_line(&mut command).unwrap();
@@ -40,7 +40,7 @@ fn main() {
             },
             |command| {
                 // TODO: allow non-current player to select cards
-                let player_id = arena.current_player_id;
+                let player_id = arena.current_player_id();
 
                 match command {
                     Command::View(location) => {
@@ -49,7 +49,7 @@ fn main() {
                     }
                     Command::EndPhase => {
                         let _ = arena.end_turn_phase()?;
-                        println!("Starting {:?}", arena.turn);
+                        println!("Starting {:?}", arena.turn());
                     }
                     Command::PlayCard(card) => {
                         let _ = arena.play_card(card)?;

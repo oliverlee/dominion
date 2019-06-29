@@ -220,7 +220,7 @@ fn militia_effect(arena: &mut Arena, player_id: usize, cards: &CardVec) -> Effec
         return Err(Error::UnresolvedActionEffect(&MILITIA_EFFECT.description()));
     }
 
-    let hand = &arena.players[player_id].hand;
+    let hand = &arena.player(player_id).unwrap().hand;
     let mut hand2 = hand.clone();
 
     if hand.len() <= 3 {
@@ -236,7 +236,7 @@ fn militia_effect(arena: &mut Arena, player_id: usize, cards: &CardVec) -> Effec
         return Err(error);
     }
 
-    let player = &mut arena.players[player_id];
+    let player = arena.player_mut(player_id).unwrap();
     std::mem::swap(&mut player.hand, &mut hand2);
     for &card in cards {
         &player.discard_pile.push(card);

@@ -13,10 +13,10 @@ use self::supply::Supply;
 pub struct Arena {
     supply: Supply,
     trash: CardVec,
-    pub(crate) players: Vec<Player>,
-    pub(crate) turn: Turn,
-    pub(crate) current_player_id: usize,
-    pub(crate) actions: CardActionQueue,
+    players: Vec<Player>,
+    turn: Turn,
+    current_player_id: usize,
+    actions: CardActionQueue,
 }
 
 impl Arena {
@@ -86,7 +86,7 @@ impl Arena {
     }
 
     fn end_action_phase(&mut self) -> Result<()> {
-        let _ = self.current_player_id_can_mut()?;
+        self.check_actions_resolved()?;
 
         self.turn = Turn::Buy(self.turn.as_action_phase_mut()?.to_buy_phase());
 
@@ -94,11 +94,11 @@ impl Arena {
     }
 
     fn end_buy_phase(&mut self) -> Result<()> {
-        let player_id = self.current_player_id_can_mut()?;
+        self.check_actions_resolved()?;
+        self.current_player_mut().cleanup();
 
         self.turn = Turn::new();
         self.current_player_id = self.next_player_id();
-        self.players[player_id].cleanup();
 
         Ok(())
     }
@@ -111,7 +111,8 @@ impl Arena {
     }
 
     fn play_action(&mut self, card: CardKind) -> Result<()> {
-        let player_id = self.current_player_id_can_mut()?;
+        self.check_actions_resolved()?;
+        let player_id = self.current_player_id;
 
         if self.turn.as_action_phase_mut()?.remaining_actions == 0 {
             Err(Error::NoMoreActions)
@@ -132,7 +133,8 @@ impl Arena {
     }
 
     fn play_treasure(&mut self, card: CardKind) -> Result<()> {
-        let player_id = self.current_player_id_can_mut()?;
+        self.check_actions_resolved()?;
+        let player_id = self.current_player_id;
 
         self.turn.as_buy_phase_mut()?;
 
@@ -154,7 +156,8 @@ impl Arena {
     }
 
     pub fn buy_card(&mut self, card: CardKind) -> Result<()> {
-        let player_id = self.current_player_id_can_mut()?;
+        self.check_actions_resolved()?;
+        let player_id = self.current_player_id;
 
         let &mut turn::BuyPhase {
             remaining_buys,
@@ -189,7 +192,7 @@ impl Arena {
         }
     }
 
-    pub(crate) fn move_card(
+    fn move_card(
         &mut self,
         origin: Location,
         destination: Location,
@@ -238,11 +241,7 @@ impl Arena {
         Ok(())
     }
 
-    pub(crate) fn try_resolve(
-        &mut self,
-        player_id: usize,
-        selected_cards: Option<&CardVec>,
-    ) -> Result<()> {
+    fn try_resolve(&mut self, player_id: usize, selected_cards: Option<&CardVec>) -> Result<()> {
         let mut temp_effect = CardActionQueue::new();
 
         // The Arena contains the ActionEffect to track the state of resolving an action card.
@@ -264,11 +263,13 @@ impl Arena {
 
     fn location(&mut self, loc: Location) -> &mut CardVec {
         match loc {
-            Location::Draw { player_id } => &mut self.players[player_id].draw_pile,
-            Location::Discard { player_id } => &mut self.players[player_id].discard_pile,
-            Location::Hand { player_id } => &mut self.players[player_id].hand,
-            Location::Play { player_id } => &mut self.players[player_id].play_zone,
-            Location::Stage { player_id } => &mut self.players[player_id].stage,
+            Location::Draw { player_id } => &mut self.player_mut(player_id).unwrap().draw_pile,
+            Location::Discard { player_id } => {
+                &mut self.player_mut(player_id).unwrap().discard_pile
+            }
+            Location::Hand { player_id } => &mut self.player_mut(player_id).unwrap().hand,
+            Location::Play { player_id } => &mut self.player_mut(player_id).unwrap().play_zone,
+            Location::Stage { player_id } => &mut self.player_mut(player_id).unwrap().stage,
             Location::Supply => panic!("Cannot return Location::Supply as a '&mut CardVec'"),
             Location::Trash => &mut self.trash,
         }
@@ -280,7 +281,7 @@ impl Arena {
         }
     }
 
-    pub(crate) fn player(&self, player_id: usize) -> Result<&Player> {
+    fn player(&self, player_id: usize) -> Result<&Player> {
         if player_id >= self.players.len() {
             Err(Error::InvalidPlayerId)
         } else {
@@ -288,26 +289,38 @@ impl Arena {
         }
     }
 
-    pub(crate) fn current_player(&self) -> &Player {
+    fn player_mut(&mut self, player_id: usize) -> Result<&mut Player> {
+        if player_id >= self.players.len() {
+            Err(Error::InvalidPlayerId)
+        } else {
+            Ok(&mut self.players[player_id])
+        }
+    }
+
+    fn current_player(&self) -> &Player {
         &self.players[self.current_player_id]
     }
 
-    pub(crate) fn current_player_mut(&mut self) -> &mut Player {
+    fn current_player_mut(&mut self) -> &mut Player {
         &mut self.players[self.current_player_id]
     }
 
-    pub(crate) fn next_player_id(&self) -> usize {
+    fn next_player_id(&self) -> usize {
         (self.current_player_id + 1) % self.players.len()
     }
 
-    fn current_player_id_can_mut(&mut self) -> Result<usize> {
+    fn check_actions_resolved(&mut self) -> Result<()> {
         if self.actions.is_resolved() {
-            Ok(self.current_player_id)
+            Ok(())
         } else {
             Err(Error::UnresolvedActionEffect(
                 self.actions.condition().unwrap_or(""),
             ))
         }
+    }
+
+    pub fn current_player_id(&self) -> usize {
+        self.current_player_id
     }
 }
 
