@@ -6,7 +6,7 @@ use scraper::*;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::{BufReader, BufWriter};
-use std::path::Path;
+use std::path::PathBuf;
 use std::process::Command;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -97,12 +97,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         #resources
     };
 
-    // let out_dir = Path::new(std::env::var("OUT_DIR")?);
-    let out_dir = Path::new(".");
-    let out_path = out_dir.join("src");
-    let out_path = out_path.join("dominion");
-    let out_path = out_path.join("card.rs");
-    //let out_path = out_dir.join("data.rs");
+    let out_dir = PathBuf::from(std::env::var("OUT_DIR")?);
+    let out_path = out_dir.join("card.rs");
 
     let mut file = BufWriter::new(File::create(&out_path)?);
     file.write_all(tokens.to_string().as_bytes())?;

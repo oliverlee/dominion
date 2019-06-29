@@ -1,7 +1,9 @@
 pub mod arena;
 pub use self::arena::Arena;
 
-pub mod card;
+pub mod card {
+    include!(concat!(env!("OUT_DIR"), "/card.rs"));
+}
 pub use self::card::CardKind;
 
 pub mod kingdom;
