@@ -8,7 +8,7 @@ fn skip_turn(arena: &mut Arena, _: usize) {
 }
 
 fn play_all_treasures(arena: &mut Arena, player_id: usize) {
-    for &card in [CardKind::Gold, CardKind::Silver, CardKind::Copper].iter() {
+    for &card in &[CardKind::Gold, CardKind::Silver, CardKind::Copper] {
         while arena
             .view(Location::Hand { player_id })
             .unwrap()

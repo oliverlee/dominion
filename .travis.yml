@@ -32,4 +32,4 @@ matrix:
         - rustup component add clippy --toolchain=nightly || cargo install --git https://github.com/rust-lang/rust-clippy/ --force clippy
       script:
         - cargo fmt -- --check;
-        - cargo clippy --all-targets --all-features -- -D clippy::all
+        - cargo clippy --all-targets --all-features -- -D clippy::all -D clippy::pedantic

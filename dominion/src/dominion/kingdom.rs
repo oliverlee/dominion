@@ -2,13 +2,14 @@ use crate::dominion::CardKind;
 
 pub type Kingdom = &'static [CardKind; 10];
 
-#[derive(Debug)]
+#[allow(clippy::module_name_repetitions)]
+#[derive(Copy, Clone, Debug)]
 pub enum KingdomSet {
     FirstGame,
 }
 
 impl KingdomSet {
-    pub fn cards(&self) -> Kingdom {
+    pub fn cards(self) -> Kingdom {
         match self {
             KingdomSet::FirstGame => &[
                 CardKind::Cellar,

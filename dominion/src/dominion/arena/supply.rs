@@ -30,8 +30,8 @@ pub struct Supply {
 }
 
 impl Supply {
-    pub fn new(kingdom_card_ids: &'static [CardKind], num_players: usize) -> Supply {
-        Supply {
+    pub fn new(kingdom_card_ids: &'static [CardKind], num_players: usize) -> Self {
+        Self {
             kingdom_cards: kingdom_card_ids
                 .iter()
                 .map(|&card_id| (card_id, kingdom_card_size(card_id, num_players)))

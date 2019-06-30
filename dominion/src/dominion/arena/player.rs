@@ -24,11 +24,11 @@ pub(crate) struct Player {
 }
 
 impl Player {
-    pub(crate) fn new() -> Player {
+    pub(crate) fn new() -> Self {
         let mut draw_pile = vec![CardKind::Copper; 7];
         draw_pile.append(&mut vec![CardKind::Estate; 3]);
 
-        let mut p = Player {
+        let mut p = Self {
             draw_pile,
             hand: CardVec::new(),
             play_zone: CardVec::new(),

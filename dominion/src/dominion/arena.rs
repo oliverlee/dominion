@@ -20,8 +20,8 @@ pub struct Arena {
 }
 
 impl Arena {
-    pub fn new(kingdom_set: KingdomSet, num_players: usize) -> Arena {
-        let mut arena = Arena {
+    pub fn new(kingdom_set: KingdomSet, num_players: usize) -> Self {
+        let mut arena = Self {
             supply: Supply::new(kingdom_set.cards(), num_players),
             trash: CardVec::new(),
             players: (0..num_players).map(|_| Player::new()).collect(),
@@ -274,7 +274,7 @@ impl Arena {
     }
 
     fn start_game(&mut self) {
-        for p in self.players.iter_mut() {
+        for p in &mut self.players {
             p.cleanup();
         }
     }

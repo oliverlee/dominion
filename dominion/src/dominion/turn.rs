@@ -8,7 +8,7 @@ pub enum Turn {
 
 impl Default for Turn {
     fn default() -> Self {
-        Turn::new()
+        Self::new()
     }
 }
 

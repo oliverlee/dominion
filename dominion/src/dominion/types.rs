@@ -18,7 +18,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub type CardVec = Vec<CardKind>;
 pub type CardPiles = HashMap<CardKind, usize>;
 
-#[derive(Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Location {
     #[allow(dead_code)]
     Draw {
@@ -71,6 +71,7 @@ impl<'a> LocationView<'a> {
     }
 }
 
+#[derive(Copy, Clone)]
 pub(crate) enum CardSpecifier {
     #[allow(dead_code)]
     Top,

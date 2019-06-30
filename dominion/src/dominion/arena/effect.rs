@@ -38,7 +38,7 @@ struct CardAction {
 }
 
 impl CardAction {
-    fn new(card: CardKind) -> CardAction {
+    fn new(card: CardKind) -> Self {
         let mut effects = Vec::new();
 
         match card {
@@ -70,7 +70,7 @@ impl CardAction {
         }
         effects.push(ADD_RESOURCES_FUNC);
 
-        CardAction { card, effects }
+        Self { card, effects }
     }
 
     fn resolve(
@@ -103,16 +103,13 @@ impl CardAction {
     }
 
     fn condition(&self) -> Option<&'static str> {
-        self.effects
-            .iter()
-            .filter_map(|&x| {
-                if let Effect::Conditional(_, desc) = *x {
-                    Some(desc)
-                } else {
-                    None
-                }
-            })
-            .next()
+        self.effects.iter().find_map(|&x| {
+            if let Effect::Conditional(_, desc) = *x {
+                Some(desc)
+            } else {
+                None
+            }
+        })
     }
 }
 
@@ -122,23 +119,23 @@ pub(crate) struct CardActionQueue {
 }
 
 impl CardActionQueue {
-    pub(crate) fn new() -> CardActionQueue {
-        CardActionQueue {
+    pub(crate) fn new() -> Self {
+        Self {
             actions: VecDeque::new(),
         }
     }
 
-    fn from_card(card: CardKind) -> CardActionQueue {
+    fn from_card(card: CardKind) -> Self {
         let mut actions = VecDeque::new();
         actions.push_back(CardAction::new(card));
-        CardActionQueue { actions }
+        Self { actions }
     }
 
     pub(crate) fn add_card(&mut self, card: CardKind) {
         self.actions.push_back(CardAction::new(card));
     }
 
-    fn append(&mut self, other: &mut CardActionQueue) {
+    fn append(&mut self, other: &mut Self) {
         self.actions.append(&mut other.actions);
     }
 
@@ -147,7 +144,7 @@ impl CardActionQueue {
     }
 
     pub(crate) fn resolve_condition(&self) -> Option<&'static str> {
-        self.actions.iter().filter_map(|x| x.condition()).next()
+        self.actions.iter().find_map(CardAction::condition)
     }
 
     pub(crate) fn resolve(
@@ -166,7 +163,7 @@ impl CardActionQueue {
                     .unwrap()
                     .resolve(arena, player_id, selected_cards);
 
-            for r in results.into_iter() {
+            for r in results {
                 match r {
                     Ok(mut actions) => {
                         if let Some(ref mut actions) = actions {
