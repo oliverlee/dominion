@@ -5,7 +5,6 @@ mod dominion;
 
 use crate::dominion::command;
 use crate::dominion::command::{Command, ParseCommandError};
-use crate::dominion::turn_phase::TurnPhase;
 use crate::dominion::{Arena, CardKind, KingdomSet, Result};
 use std::convert::TryInto;
 use std::str::FromStr;
@@ -24,7 +23,7 @@ fn main() {
     }
 
     while !arena.is_game_over() {
-        println!("\n{:?}\n", arena.turn);
+        println!("\n{:?}\n", arena.turn());
 
         let mut command = String::new();
         std::io::stdin().read_line(&mut command).unwrap();
@@ -41,7 +40,7 @@ fn main() {
             },
             |command| {
                 // TODO: allow non-current player to select cards
-                let player_id = arena.turn.player_id;
+                let player_id = arena.current_player_id();
 
                 match command {
                     Command::View(location) => {
@@ -49,8 +48,8 @@ fn main() {
                         println!()
                     }
                     Command::EndPhase => {
-                        let _ = arena.end_phase()?;
-                        println!("Starting {:?}", arena.turn);
+                        let _ = arena.end_turn_phase()?;
+                        println!("Starting {:?}", arena.turn());
                     }
                     Command::PlayCard(card) => {
                         let _ = arena.play_card(card)?;

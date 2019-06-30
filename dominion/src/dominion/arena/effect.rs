@@ -1,6 +1,5 @@
 use crate::dominion::types::{CardSpecifier, CardVec, Error, Location, Result};
-use crate::dominion::Arena;
-use crate::dominion::CardKind;
+use crate::dominion::{Arena, CardKind};
 use std::collections::VecDeque;
 
 enum Effect {
@@ -147,7 +146,7 @@ impl CardActionQueue {
         self.actions.is_empty()
     }
 
-    pub(crate) fn condition(&self) -> Option<&'static str> {
+    pub(crate) fn resolve_condition(&self) -> Option<&'static str> {
         self.actions.iter().filter_map(|x| x.condition()).next()
     }
 
@@ -179,7 +178,7 @@ impl CardActionQueue {
             }
 
             // Don't use the same selected cards in subsequent spawned action card effects.
-            player_id = arena.turn.player_id;
+            player_id = arena.current_player_id;
             selected_cards = None;
             self.actions.pop_front();
         }
@@ -190,7 +189,7 @@ impl CardActionQueue {
 
 fn add_resources_func(arena: &mut Arena, _: usize, card: CardKind) -> Option<CardActionQueue> {
     if let Some(resources) = card.resources() {
-        let action_phase = arena.turn.phase.as_action_phase_mut().unwrap();
+        let action_phase = arena.turn.as_action_phase_mut().unwrap();
 
         action_phase.remaining_actions += resources.actions;
         action_phase.remaining_buys += resources.buys;
@@ -217,11 +216,11 @@ fn militia_effect(arena: &mut Arena, player_id: usize, cards: &CardVec) -> Effec
     let error = Error::UnresolvedActionEffect(&MILITIA_EFFECT.description());
 
     // TODO: Handle games with more than 2 players.
-    if player_id == arena.turn.player_id {
+    if player_id == arena.current_player_id {
         return Err(Error::UnresolvedActionEffect(&MILITIA_EFFECT.description()));
     }
 
-    let hand = &arena.players[player_id].hand;
+    let hand = &arena.player(player_id).unwrap().hand;
     let mut hand2 = hand.clone();
 
     if hand.len() <= 3 {
@@ -237,7 +236,7 @@ fn militia_effect(arena: &mut Arena, player_id: usize, cards: &CardVec) -> Effec
         return Err(error);
     }
 
-    let player = &mut arena.players[player_id];
+    let player = arena.player_mut(player_id).unwrap();
     std::mem::swap(&mut player.hand, &mut hand2);
     for &card in cards {
         &player.discard_pile.push(card);
@@ -272,7 +271,7 @@ fn throne_room_effect(arena: &mut Arena, _: usize, cards: &CardVec) -> EffectRes
     }
 
     if let Some(card) = card_index {
-        let player_id = arena.turn.player_id;
+        let player_id = arena.current_player_id;
 
         arena
             .move_card(
@@ -294,7 +293,7 @@ fn throne_room_effect(arena: &mut Arena, _: usize, cards: &CardVec) -> EffectRes
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::dominion::turn_phase::{ActionPhase, TurnPhase};
+    use crate::dominion::turn::{self, Turn};
     use crate::dominion::{Arena, KingdomSet};
 
     #[test]
@@ -303,20 +302,29 @@ mod test {
         assert!(stacks.is_resolved());
     }
 
+    fn setup_arena_actions() -> (Arena, CardActionQueue) {
+        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
+        let mut actions: Option<CardActionQueue> = None;
+
+        std::mem::swap(&mut arena.actions, &mut actions);
+
+        (arena, actions.unwrap())
+    }
+
     #[test]
     fn resolve_market_stack() {
-        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
-        arena.actions.add_card(CardKind::Market);
+        let (mut arena, mut actions) = setup_arena_actions();
+        actions.add_card(CardKind::Market);
 
-        let r = arena.try_resolve(0, None);
+        let r = actions.resolve(&mut arena, 0, None);
 
         assert_eq!(r, Ok(()));
-        assert!(arena.actions.is_resolved());
+        assert!(actions.is_resolved());
 
         // Market is never played so no resources are used.
         assert_eq!(
-            arena.turn_phase(),
-            TurnPhase::Action(ActionPhase {
+            arena.turn(),
+            Turn::Action(turn::ActionPhase {
                 remaining_actions: 2,
                 remaining_buys: 2,
                 remaining_copper: 1,
@@ -326,10 +334,10 @@ mod test {
 
     #[test]
     fn resolve_militia_stack() {
-        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
-        arena.actions.add_card(CardKind::Militia);
+        let (mut arena, mut actions) = setup_arena_actions();
+        actions.add_card(CardKind::Militia);
 
-        let r = arena.try_resolve(0, None);
+        let r = actions.resolve(&mut arena, 0, None);
 
         // Action effect must still be resolved after 'no-selection'.
         assert_eq!(
@@ -338,7 +346,7 @@ mod test {
                 "Each other player discards down to 3 cards in their hand."
             ))
         );
-        assert!(!arena.actions.is_resolved());
+        assert!(!actions.is_resolved());
 
         let discard_cards: Vec<_> = arena
             .view(Location::Hand { player_id: 0 })
@@ -348,7 +356,7 @@ mod test {
             .take(2)
             .cloned()
             .collect();
-        let r = arena.select_cards(0, &discard_cards);
+        let r = actions.resolve(&mut arena, 0, Some(&discard_cards));
 
         // Effect fails to resolve due to incorrect player selecting cards.
         assert_eq!(
@@ -357,7 +365,7 @@ mod test {
                 "Each other player discards down to 3 cards in their hand."
             ))
         );
-        assert!(!arena.actions.is_resolved());
+        assert!(!actions.is_resolved());
 
         let discard_cards: Vec<_> = arena
             .view(Location::Hand { player_id: 1 })
@@ -367,18 +375,18 @@ mod test {
             .take(2)
             .cloned()
             .collect();
-        let r = arena.select_cards(1, &discard_cards);
+        let r = actions.resolve(&mut arena, 1, Some(&discard_cards));
 
         // Effect successfully resolves.
         assert_eq!(r, Ok(()));
-        assert!(arena.actions.is_resolved());
+        assert!(actions.is_resolved());
 
         assert_eq!(arena.player(1).unwrap().hand.len(), 3);
 
         // Militia is never played so no resources are used.
         assert_eq!(
-            arena.turn_phase(),
-            TurnPhase::Action(ActionPhase {
+            arena.turn(),
+            Turn::Action(turn::ActionPhase {
                 remaining_actions: 1,
                 remaining_buys: 1,
                 remaining_copper: 2,
@@ -388,10 +396,10 @@ mod test {
 
     #[test]
     fn resolve_throne_room_stack_no_action() {
-        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
-        arena.actions.add_card(CardKind::ThroneRoom);
+        let (mut arena, mut actions) = setup_arena_actions();
+        actions.add_card(CardKind::ThroneRoom);
 
-        let r = arena.try_resolve(0, None);
+        let r = actions.resolve(&mut arena, 0, None);
 
         assert_eq!(
             r,
@@ -399,18 +407,18 @@ mod test {
                 "You may play an Action card from your hand twice."
             ))
         );
-        assert!(!arena.actions.is_resolved());
+        assert!(!actions.is_resolved());
 
         let throne_room_action = vec![];
-        let r = arena.select_cards(0, &throne_room_action);
+        let r = actions.resolve(&mut arena, 0, Some(&throne_room_action));
 
         assert_eq!(r, Ok(()));
-        assert!(arena.actions.is_resolved());
+        assert!(actions.is_resolved());
 
         assert_eq!(arena.current_player().hand.len(), 5);
         assert_eq!(
-            arena.turn_phase(),
-            TurnPhase::Action(ActionPhase {
+            arena.turn(),
+            Turn::Action(turn::ActionPhase {
                 remaining_actions: 1,
                 remaining_buys: 1,
                 remaining_copper: 0,
@@ -420,33 +428,33 @@ mod test {
 
     #[test]
     fn resolve_throne_room_stack_smithy() {
-        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
+        let (mut arena, mut actions) = setup_arena_actions();
         arena.current_player_mut().hand.push(CardKind::Smithy);
 
         assert_eq!(arena.current_player().hand.len(), 6);
         assert_eq!(
-            arena.turn_phase(),
-            TurnPhase::Action(ActionPhase {
+            arena.turn(),
+            Turn::Action(turn::ActionPhase {
                 remaining_actions: 1,
                 remaining_buys: 1,
                 remaining_copper: 0,
             })
         );
 
-        arena.actions.add_card(CardKind::ThroneRoom);
+        actions.add_card(CardKind::ThroneRoom);
         let throne_room_action = vec![CardKind::Smithy];
-        let r = arena.select_cards(0, &throne_room_action);
+        let r = actions.resolve(&mut arena, 0, Some(&throne_room_action));
 
         assert_eq!(r, Ok(()));
-        assert!(arena.actions.is_resolved());
+        assert!(actions.is_resolved());
 
         // There are only 5 cards that can be drawn + 5 in hand.
         assert_eq!(arena.current_player().hand.len(), 10);
 
         // Throne Room and Smithy are never played normally so no resources are used.
         assert_eq!(
-            arena.turn_phase(),
-            TurnPhase::Action(ActionPhase {
+            arena.turn(),
+            Turn::Action(turn::ActionPhase {
                 remaining_actions: 1,
                 remaining_buys: 1,
                 remaining_copper: 0,
@@ -456,13 +464,13 @@ mod test {
 
     #[test]
     fn resolve_throne_room_stack_militia() {
-        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
+        let (mut arena, mut actions) = setup_arena_actions();
         arena.current_player_mut().hand.push(CardKind::Militia);
 
         assert_eq!(arena.current_player().hand.len(), 6);
         assert_eq!(
-            arena.turn_phase(),
-            TurnPhase::Action(ActionPhase {
+            arena.turn(),
+            Turn::Action(turn::ActionPhase {
                 remaining_actions: 1,
                 remaining_buys: 1,
                 remaining_copper: 0,
@@ -471,38 +479,41 @@ mod test {
 
         // Ensure that the CardActionQueue is not resolved as the other player must select cards to
         // discard.
-        arena.actions.add_card(CardKind::ThroneRoom);
+        actions.add_card(CardKind::ThroneRoom);
         let throne_room_action = vec![CardKind::Militia];
-        let r = arena.select_cards(0, &throne_room_action);
+        let r = actions.resolve(&mut arena, 0, Some(&throne_room_action));
+
         assert_eq!(
             r,
             Err(Error::UnresolvedActionEffect(
                 "Each other player discards down to 3 cards in their hand."
             ))
         );
-        assert!(!arena.actions.is_resolved());
+        assert!(!actions.is_resolved());
 
         // Ensure that card selection only resolves first Militia action effect.
         let discard_cards = vec![CardKind::Copper; 2];
-        let r = arena.select_cards(1, &discard_cards);
+        let r = actions.resolve(&mut arena, 1, Some(&discard_cards));
+
         assert_eq!(
             r,
             Err(Error::UnresolvedActionEffect(
                 "Each other player discards down to 3 cards in their hand."
             ))
         );
-        assert!(!arena.actions.is_resolved());
+        assert!(!actions.is_resolved());
 
         // No need to discard cards on the second Militia action effect.
         let discard_cards = vec![];
-        let r = arena.select_cards(1, &discard_cards);
+        let r = actions.resolve(&mut arena, 1, Some(&discard_cards));
+
         assert_eq!(r, Ok(()));
-        assert!(arena.actions.is_resolved());
+        assert!(actions.is_resolved());
 
         // Throne Room and Militia are never played normally so no resources are used.
         assert_eq!(
-            arena.turn_phase(),
-            TurnPhase::Action(ActionPhase {
+            arena.turn(),
+            Turn::Action(turn::ActionPhase {
                 remaining_actions: 1,
                 remaining_buys: 1,
                 remaining_copper: 4,

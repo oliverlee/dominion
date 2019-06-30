@@ -1,5 +1,3 @@
-extern crate rand;
-
 use crate::dominion::types::CardVec;
 use crate::dominion::CardKind;
 use rand::rngs::StdRng;
