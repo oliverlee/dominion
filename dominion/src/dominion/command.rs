@@ -43,8 +43,6 @@ impl From<std::num::ParseIntError> for ParseCommandError {
     }
 }
 
-type CommandResult<T> = std::result::Result<T, ParseCommandError>;
-
 #[derive(Debug, PartialEq)]
 pub(crate) enum Command {
     View(Location),
@@ -107,6 +105,7 @@ impl FromStr for Command {
     }
 }
 
+#[allow(dead_code)] // FIXME This is used in main so I'm not sure why a warning is emitted?
 pub fn help() -> &'static str {
     "Valid commands:\n\
      hand <i> - view player <i>'s hand\n\

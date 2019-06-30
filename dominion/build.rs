@@ -60,6 +60,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
+        #[allow(dead_code)]
         impl CardKind {
             pub fn name(self) -> &'static str {
                 match self {

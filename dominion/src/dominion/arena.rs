@@ -70,6 +70,7 @@ impl Arena {
         self.supply.is_game_over()
     }
 
+    #[allow(dead_code)]
     pub fn in_deck(&self, player_id: usize, card: CardKind) -> Result<bool> {
         self.player(player_id).map(|player| player.in_deck(card))
     }

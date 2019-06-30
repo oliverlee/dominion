@@ -3,8 +3,7 @@
 
 mod dominion;
 
-use crate::dominion::command;
-use crate::dominion::command::{Command, ParseCommandError};
+use crate::dominion::command::{self, Command, ParseCommandError};
 use crate::dominion::{Arena, KingdomSet, Result};
 
 fn main() {

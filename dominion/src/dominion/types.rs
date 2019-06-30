@@ -4,10 +4,7 @@ use std::collections::HashMap;
 #[derive(Debug, Eq, PartialEq)]
 pub enum Error {
     InvalidPlayerId,
-    InactivePlayer,
     WrongTurnPhase,
-    InvalidCardLocation,
-    NotYetImplemented,
     NoMoreActions,
     NoMoreBuys,
     NoMoreCards,
@@ -23,12 +20,25 @@ pub type CardPiles = HashMap<CardKind, usize>;
 
 #[derive(Debug, PartialEq)]
 pub enum Location {
-    Draw { player_id: usize },
-    Discard { player_id: usize },
-    Hand { player_id: usize },
-    Play { player_id: usize },
-    Stage { player_id: usize },
+    #[allow(dead_code)]
+    Draw {
+        player_id: usize,
+    },
+    Discard {
+        player_id: usize,
+    },
+    Hand {
+        player_id: usize,
+    },
+    Play {
+        player_id: usize,
+    },
+    #[allow(dead_code)]
+    Stage {
+        player_id: usize,
+    },
     Supply,
+    #[allow(dead_code)]
     Trash,
 }
 
@@ -42,7 +52,9 @@ pub enum LocationView<'a> {
     Unordered(CardPilesView<'a>),
 }
 
+// These methods are only used by tests.
 impl<'a> LocationView<'a> {
+    #[allow(dead_code)]
     pub fn unwrap_ordered(self) -> CardVecView<'a> {
         match self {
             LocationView::Ordered(cards) => cards,
@@ -50,6 +62,7 @@ impl<'a> LocationView<'a> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn unwrap_unordered(self) -> CardPilesView<'a> {
         match self {
             LocationView::Unordered(cards) => cards,
@@ -59,6 +72,7 @@ impl<'a> LocationView<'a> {
 }
 
 pub(crate) enum CardSpecifier {
+    #[allow(dead_code)]
     Top,
     Index(usize),
     Card(CardKind),
