@@ -42,7 +42,7 @@ pub enum Location {
     Trash,
 }
 
-type CardVecView<'a> = &'a CardVec;
+type CardVecView<'a> = &'a [CardKind];
 type CardPilesIter<'a> = std::collections::hash_map::Iter<'a, CardKind, usize>;
 pub type CardPilesView<'a> = std::iter::Chain<CardPilesIter<'a>, CardPilesIter<'a>>;
 

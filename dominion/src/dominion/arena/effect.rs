@@ -1,4 +1,4 @@
-use crate::dominion::types::{CardSpecifier, CardVec, Error, Location, Result};
+use crate::dominion::types::{CardSpecifier, Error, Location, Result};
 use crate::dominion::{Arena, CardKind};
 use std::collections::VecDeque;
 
@@ -27,7 +27,7 @@ impl std::fmt::Debug for Effect {
 
 type EffectResult = Result<Option<CardActionQueue>>;
 type ConditionalEffectFunction =
-    fn(arena: &mut Arena, player_id: usize, cards: &CardVec) -> EffectResult;
+    fn(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> EffectResult;
 type UnconditionalEffectFunction =
     fn(arena: &mut Arena, player_id: usize, origin_card: CardKind) -> Option<CardActionQueue>;
 
@@ -77,7 +77,7 @@ impl CardAction {
         &mut self,
         arena: &mut Arena,
         player_id: usize,
-        selected_cards: Option<&CardVec>,
+        selected_cards: Option<&[CardKind]>,
     ) -> impl Iterator<Item = EffectResult> {
         let mut results = Vec::new();
 
@@ -154,7 +154,7 @@ impl CardActionQueue {
         &mut self,
         arena: &mut Arena,
         player_id: usize,
-        selected_cards: Option<&CardVec>,
+        selected_cards: Option<&[CardKind]>,
     ) -> Result<()> {
         let mut player_id = player_id;
         let mut selected_cards = selected_cards;
@@ -212,7 +212,7 @@ const MILITIA_EFFECT: &Effect = &Effect::Conditional(
     "Each other player discards down to 3 cards in their hand.",
 );
 
-fn militia_effect(arena: &mut Arena, player_id: usize, cards: &CardVec) -> EffectResult {
+fn militia_effect(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> EffectResult {
     let error = Error::UnresolvedActionEffect(&MILITIA_EFFECT.description());
 
     // TODO: Handle games with more than 2 players.
@@ -250,7 +250,7 @@ const THRONE_ROOM_EFFECT: &Effect = &Effect::Conditional(
     "You may play an Action card from your hand twice.",
 );
 
-fn throne_room_effect(arena: &mut Arena, _: usize, cards: &CardVec) -> EffectResult {
+fn throne_room_effect(arena: &mut Arena, _: usize, cards: &[CardKind]) -> EffectResult {
     let error = Error::UnresolvedActionEffect(&THRONE_ROOM_EFFECT.description());
     let card_index;
 

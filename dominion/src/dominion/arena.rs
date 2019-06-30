@@ -183,7 +183,7 @@ impl Arena {
     }
 
     // Select cards to resolve an action effect.
-    pub fn select_cards(&mut self, player_id: usize, cards: &CardVec) -> Result<()> {
+    pub fn select_cards(&mut self, player_id: usize, cards: &[CardKind]) -> Result<()> {
         if player_id >= self.players.len() {
             Err(Error::InvalidPlayerId)
         } else {
@@ -240,7 +240,7 @@ impl Arena {
         Ok(())
     }
 
-    fn try_resolve(&mut self, player_id: usize, selected_cards: Option<&CardVec>) -> Result<()> {
+    fn try_resolve(&mut self, player_id: usize, selected_cards: Option<&[CardKind]>) -> Result<()> {
         let mut temp: Option<CardActionQueue> = None;
 
         // The Arena contains the ActionEffect to track the state of resolving an action card.
