@@ -6,8 +6,14 @@ pub enum Turn {
     Buy(BuyPhase),
 }
 
+impl Default for Turn {
+    fn default() -> Self {
+        Turn::new()
+    }
+}
+
 impl Turn {
-    pub fn new() -> Turn {
+    pub fn new() -> Self {
         Turn::Action(ActionPhase {
             remaining_actions: 1,
             remaining_buys: 1,
@@ -50,4 +56,40 @@ impl ActionPhase {
 pub struct BuyPhase {
     pub remaining_buys: u8,
     pub remaining_copper: u8,
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn new_action_turn() {
+        let turn = Turn::new();
+
+        assert_eq!(
+            turn,
+            Turn::Action(ActionPhase {
+                remaining_actions: 1,
+                remaining_buys: 1,
+                remaining_copper: 0,
+            })
+        );
+    }
+
+    #[test]
+    fn convert_action_to_buy() {
+        let turn = Turn::new()
+            .as_action_phase_mut()
+            .unwrap()
+            .to_owned()
+            .to_buy_phase();
+
+        assert_eq!(
+            turn,
+            BuyPhase {
+                remaining_buys: 1,
+                remaining_copper: 0
+            }
+        );
+    }
 }
