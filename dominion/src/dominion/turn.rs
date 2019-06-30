@@ -38,7 +38,7 @@ pub struct ActionPhase {
 }
 
 impl ActionPhase {
-    pub fn to_buy_phase(&self) -> BuyPhase {
+    pub fn to_buy_phase(self) -> BuyPhase {
         BuyPhase {
             remaining_buys: self.remaining_buys,
             remaining_copper: self.remaining_copper,

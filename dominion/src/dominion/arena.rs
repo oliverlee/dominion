@@ -116,19 +116,17 @@ impl Arena {
 
         if self.turn.as_action_phase_mut()?.remaining_actions == 0 {
             Err(Error::NoMoreActions)
+        } else if card.is_action() {
+            self.move_card(
+                Location::Hand { player_id },
+                Location::Play { player_id },
+                CardSpecifier::Card(card),
+            )?;
+            self.turn.as_action_phase_mut().unwrap().remaining_actions -= 1;
+            self.actions.as_mut().unwrap().add_card(card);
+            self.try_resolve(player_id, None)
         } else {
-            if card.is_action() {
-                self.move_card(
-                    Location::Hand { player_id },
-                    Location::Play { player_id },
-                    CardSpecifier::Card(card),
-                )?;
-                self.turn.as_action_phase_mut().unwrap().remaining_actions -= 1;
-                self.actions.as_mut().unwrap().add_card(card);
-                self.try_resolve(player_id, None)
-            } else {
-                Err(Error::InvalidCardChoice)
-            }
+            Err(Error::InvalidCardChoice)
         }
     }
 

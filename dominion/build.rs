@@ -61,8 +61,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         impl CardKind {
-            pub fn name(&self) -> &'static str {
-                match *self {
+            pub fn name(self) -> &'static str {
+                match self {
                     #(CardKind::#ident => #name,)*
                 }
             }
@@ -70,16 +70,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             #(#is_type_methods)*
 
             // Base set only costs copper so just return an int for now.
-            pub fn cost(&self) -> u8 {
-                match *self {
+            pub fn cost(self) -> u8 {
+                match self {
                     #(CardKind::#ident => #cost,)*
                 }
             }
 
             #vp_method
 
-            pub fn description(&self) -> &'static str {
-                match *self {
+            pub fn description(self) -> &'static str {
+                match self {
                     #(CardKind::#ident => #description,)*
                 }
             }
@@ -194,8 +194,8 @@ fn victory_points_method(cards: &Vec<CardExt>) -> TokenStream {
     });
 
     quote! {
-        pub fn victory_points(&self) -> i32 {
-            match *self {
+        pub fn victory_points(self) -> i32 {
+            match self {
                 #(#victory_point_matches,)*
                 _ => 0,
             }
@@ -233,8 +233,8 @@ fn is_type_method(cards: &Vec<CardExt>, types: &Vec<String>, type_name: &str) ->
     let method_name = Ident::new(&method_name, Span::call_site());
 
     quote! {
-        pub fn #method_name(&self) -> bool {
-            match *self {
+        pub fn #method_name(self) -> bool {
+            match self {
                 #(#is_type_match_lines,)*
                 _ => false,
             }
@@ -348,8 +348,8 @@ fn parse_description(cards: &Vec<CardExt>) -> TokenStream {
 
     quote! {
         impl CardKind {
-            pub fn resources(&self) -> Option<&CardResources> {
-                match *self {
+            pub fn resources(self) -> Option<&'static CardResources> {
+                match self {
                     #(#matches,)*
                     _ => None,
                 }

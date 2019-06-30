@@ -14,8 +14,7 @@ fn play_all_treasures(arena: &mut Arena, player_id: usize) {
             .unwrap()
             .unwrap_ordered()
             .iter()
-            .find(|&&x| x == card)
-            .is_some()
+            .any(|&x| x == card)
         {
             arena.play_card(card).unwrap();
         }
@@ -71,7 +70,7 @@ fn play_big_money() {
             "p1 hand: {:?}",
             arena.view(Location::Hand { player_id }).unwrap()
         );
-        println!("");
+        println!();
 
         assert!(turn_number <= 50);
     }
