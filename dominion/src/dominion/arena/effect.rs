@@ -1,8 +1,12 @@
-use crate::dominion::types::{CardSpecifier, Error, Location, Result};
+use crate::dominion::types::{Error, Result};
 use crate::dominion::{Arena, CardKind};
 use std::collections::VecDeque;
 
-enum Effect {
+// Each card effect is defined in it's own file.
+mod militia;
+mod throne_room;
+
+pub(self) enum Effect {
     Conditional(ConditionalEffectFunction, &'static str),
     Unconditional(UnconditionalEffectFunction),
 }
@@ -49,13 +53,13 @@ impl CardAction {
             //CardKind::Workshop => unimplemeted!(),
             //CardKind::Bureaucrat => unimplemeted!(),
             CardKind::Militia => {
-                effects.push(MILITIA_EFFECT);
+                effects.push(militia::EFFECT);
             }
             //CardKind::Moneylender => unimplemeted!(),
             //CardKind::Poacher => unimplemeted!(),
             //CardKind::Remodel => unimplemeted!(),
             CardKind::ThroneRoom => {
-                effects.push(THRONE_ROOM_EFFECT);
+                effects.push(throne_room::EFFECT);
             }
             //CardKind::Bandit => unimplemeted!(),
             //CardKind::CouncilRoom => unimplemeted!(),
@@ -204,93 +208,11 @@ fn add_resources_func(arena: &mut Arena, _: usize, card: CardKind) -> Option<Car
 
 const ADD_RESOURCES_FUNC: &Effect = &Effect::Unconditional(add_resources_func);
 
-const MILITIA_EFFECT: &Effect = &Effect::Conditional(
-    militia_effect,
-    "Each other player discards down to 3 cards in their hand.",
-);
-
-fn militia_effect(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> EffectResult {
-    let error = Error::UnresolvedActionEffect(&MILITIA_EFFECT.description());
-
-    // TODO: Handle games with more than 2 players.
-    if player_id == arena.current_player_id {
-        return Err(Error::UnresolvedActionEffect(&MILITIA_EFFECT.description()));
-    }
-
-    let hand = &arena.player(player_id).unwrap().hand;
-    let mut hand2 = hand.clone();
-
-    if hand.len() <= 3 {
-        if !cards.is_empty() {
-            return Err(error);
-        }
-    } else if hand.len() == cards.len() + 3 {
-        // TODO: Use something more efficient.
-        if !cards.iter().all(|card| hand2.remove_item(card).is_some()) {
-            return Err(error);
-        }
-    } else {
-        return Err(error);
-    }
-
-    let player = arena.player_mut(player_id).unwrap();
-    std::mem::swap(&mut player.hand, &mut hand2);
-    for &card in cards {
-        player.discard_pile.push(card);
-    }
-
-    Ok(None)
-}
-
-const THRONE_ROOM_EFFECT: &Effect = &Effect::Conditional(
-    throne_room_effect,
-    "You may play an Action card from your hand twice.",
-);
-
-fn throne_room_effect(arena: &mut Arena, _: usize, cards: &[CardKind]) -> EffectResult {
-    let error = Error::UnresolvedActionEffect(&THRONE_ROOM_EFFECT.description());
-    let card_index;
-
-    if cards.is_empty() {
-        card_index = None;
-    } else if cards.len() == 1 {
-        match arena
-            .current_player()
-            .hand
-            .iter()
-            .position(|&hand_card| hand_card == cards[0])
-        {
-            Some(i) => card_index = Some(CardSpecifier::Index(i)),
-            None => return Err(error),
-        };
-    } else {
-        return Err(error);
-    }
-
-    if let Some(card) = card_index {
-        let player_id = arena.current_player_id;
-
-        arena
-            .move_card(
-                Location::Hand { player_id },
-                Location::Play { player_id },
-                card,
-            )
-            .unwrap();
-
-        let mut actions = CardActionQueue::from_card(cards[0]);
-        actions.add_card(cards[0]);
-
-        Ok(Some(actions))
-    } else {
-        Ok(None)
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
     use crate::dominion::turn::{self, Turn};
+    use crate::dominion::types::Location;
     use crate::dominion::{Arena, KingdomSet};
 
     #[test]
