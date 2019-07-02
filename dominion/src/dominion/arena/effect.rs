@@ -4,6 +4,7 @@ use std::collections::VecDeque;
 
 // Each card effect is defined in it's own file.
 mod cellar;
+mod chapel;
 mod militia;
 mod throne_room;
 
@@ -50,7 +51,9 @@ impl CardAction {
             CardKind::Cellar => {
                 effects.push(cellar::EFFECT);
             }
-            //CardKind::Chapel => unimplemeted!(),
+            CardKind::Chapel => {
+                effects.push(chapel::EFFECT);
+            }
             //CardKind::Harbinger => unimplemeted!(),
             //CardKind::Vassal => unimplemeted!(),
             //CardKind::Workshop => unimplemeted!(),
