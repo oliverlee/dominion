@@ -3,6 +3,7 @@ use crate::dominion::{Arena, CardKind};
 use std::collections::VecDeque;
 
 // Each card effect is defined in it's own file.
+mod cellar;
 mod militia;
 mod throne_room;
 
@@ -46,7 +47,9 @@ impl CardAction {
         let mut effects = Vec::new();
 
         match card {
-            //CardKind::Cellar => unimplemeted!(),
+            CardKind::Cellar => {
+                effects.push(cellar::EFFECT);
+            }
             //CardKind::Chapel => unimplemeted!(),
             //CardKind::Harbinger => unimplemeted!(),
             //CardKind::Vassal => unimplemeted!(),
