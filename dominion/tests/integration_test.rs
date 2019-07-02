@@ -8,14 +8,13 @@ fn skip_turn(arena: &mut Arena, _: usize) {
 }
 
 fn play_all_treasures(arena: &mut Arena, player_id: usize) {
-    for &card in [CardKind::Gold, CardKind::Silver, CardKind::Copper].iter() {
+    for &card in &[CardKind::Gold, CardKind::Silver, CardKind::Copper] {
         while arena
             .view(Location::Hand { player_id })
             .unwrap()
             .unwrap_ordered()
             .iter()
-            .find(|&&x| x == card)
-            .is_some()
+            .any(|&x| x == card)
         {
             arena.play_card(card).unwrap();
         }
@@ -71,7 +70,7 @@ fn play_big_money() {
             "p1 hand: {:?}",
             arena.view(Location::Hand { player_id }).unwrap()
         );
-        println!("");
+        println!();
 
         assert!(turn_number <= 50);
     }

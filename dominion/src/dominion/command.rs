@@ -32,18 +32,16 @@ impl fmt::Display for ParseCommandError {
 }
 
 impl From<serde_json::error::Error> for ParseCommandError {
-    fn from(error: serde_json::error::Error) -> Self {
+    fn from(_: serde_json::error::Error) -> Self {
         ParseCommandError::UndefinedCardKind
     }
 }
 
 impl From<std::num::ParseIntError> for ParseCommandError {
-    fn from(error: std::num::ParseIntError) -> Self {
+    fn from(_: std::num::ParseIntError) -> Self {
         ParseCommandError::InvalidPlayerId
     }
 }
-
-type CommandResult<T> = std::result::Result<T, ParseCommandError>;
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum Command {
@@ -77,7 +75,7 @@ impl FromStr for Command {
             )),
             "select" => {
                 let cards = args
-                    .into_iter()
+                    .iter()
                     .map(|s| s.parse::<CardKind>())
                     .collect::<Result<Vec<_>, _>>()?;
 
@@ -90,13 +88,13 @@ impl FromStr for Command {
                     .ok_or(ParseCommandError::UnspecifiedPlayerId)?
                     .parse()?,
             })),
-            "discard" => Ok(Command::View(Location::Discard {
+            "discard-zone" => Ok(Command::View(Location::Discard {
                 player_id: args
                     .get(0)
                     .ok_or(ParseCommandError::UnspecifiedPlayerId)?
                     .parse()?,
             })),
-            "play" => Ok(Command::View(Location::Play {
+            "play-zone" => Ok(Command::View(Location::Play {
                 player_id: args
                     .get(0)
                     .ok_or(ParseCommandError::UnspecifiedPlayerId)?
@@ -107,11 +105,12 @@ impl FromStr for Command {
     }
 }
 
+#[allow(dead_code)] // FIXME This is used in main so I'm not sure why a warning is emitted?
 pub fn help() -> &'static str {
     "Valid commands:\n\
      hand <i> - view player <i>'s hand\n\
-     discard <i>- view player <i>'s discard pile\n\
-     play <i> - view player <i>'s play zone\n\
+     discard-zone <i>- view player <i>'s discard pile\n\
+     play-zone <i> - view player <i>'s play zone\n\
      supply - view the game's supply\n\
      end - ends the current phase (action or buy)\n\
      play <card>\n\

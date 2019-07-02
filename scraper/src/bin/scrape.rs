@@ -13,6 +13,7 @@ fn main() {
     .unwrap();
 }
 
+#[allow(clippy::non_ascii_literal)]
 fn scrape_dominion_strategy() -> Scrape {
     let mut sets: Vec<Set> = Vec::new();
     let mut cards: Vec<Card> = Vec::new();

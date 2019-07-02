@@ -24,11 +24,11 @@ pub(crate) struct Player {
 }
 
 impl Player {
-    pub(crate) fn new() -> Player {
+    pub(crate) fn new() -> Self {
         let mut draw_pile = vec![CardKind::Copper; 7];
         draw_pile.append(&mut vec![CardKind::Estate; 3]);
 
-        let mut p = Player {
+        let mut p = Self {
             draw_pile,
             hand: CardVec::new(),
             play_zone: CardVec::new(),
@@ -48,7 +48,9 @@ impl Player {
         }
 
         // We consider the top of the draw pile to be the end that is popped.
-        self.draw_pile.pop().map(|x| self.hand.push(x));
+        if let Some(x) = self.draw_pile.pop() {
+            self.hand.push(x)
+        }
     }
 
     pub(crate) fn cleanup(&mut self) {
@@ -145,16 +147,8 @@ mod tests {
 
         p.cleanup();
 
-        assert!(p
-            .discard_pile
-            .iter()
-            .find(|&&x| x == CardKind::Silver)
-            .is_some());
-        assert!(p
-            .discard_pile
-            .iter()
-            .find(|&&x| x == CardKind::Gold)
-            .is_some());
+        assert!(p.discard_pile.iter().any(|&x| x == CardKind::Silver));
+        assert!(p.discard_pile.iter().any(|&x| x == CardKind::Gold));
         assert_eq!(p.discard_pile.len(), 2);
         assert_eq!(p.hand, vec![CardKind::Copper; 5]);
         assert!(p.draw_pile.is_empty());

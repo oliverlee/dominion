@@ -31,7 +31,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let cost = extended_cards.iter().map(|card| {
-        Literal::u8_suffixed(match card.card.cost {
+        Literal::u8_unsuffixed(match card.card.cost {
             Cost::Copper(x) => x,
             _ => 0,
         })
@@ -47,6 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         use serde::Deserialize;
         use std::str::FromStr;
 
+        #[allow(clippy::module_name_repetitions)]
         #[derive(Copy, Clone, Debug, Deserialize, Eq, Hash, PartialEq)]
         pub enum CardKind {
             #(#ident,)*
@@ -60,9 +61,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
+        #[allow(dead_code)]
+        #[allow(clippy::match_same_arms)]
         impl CardKind {
-            pub fn name(&self) -> &'static str {
-                match *self {
+            pub fn name(self) -> &'static str {
+                match self {
                     #(CardKind::#ident => #name,)*
                 }
             }
@@ -70,16 +73,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             #(#is_type_methods)*
 
             // Base set only costs copper so just return an int for now.
-            pub fn cost(&self) -> u8 {
-                match *self {
+            pub fn cost(self) -> u8 {
+                match self {
                     #(CardKind::#ident => #cost,)*
                 }
             }
 
             #vp_method
 
-            pub fn description(&self) -> &'static str {
-                match *self {
+            pub fn description(self) -> &'static str {
+                match self {
                     #(CardKind::#ident => #description,)*
                 }
             }
@@ -87,7 +90,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // TODO: prevent object from being constructed?
         #[derive(Debug)]
-        pub struct CardResources {
+        pub struct Resources {
             pub cards: u8,
             pub actions: u8,
             pub buys: u8,
@@ -188,14 +191,16 @@ fn victory_points_method(cards: &Vec<CardExt>) -> TokenStream {
                 .map(|captures| captures.get(1).unwrap().as_str().parse::<i32>().unwrap())
                 .and_then(|points| {
                     let ident = Ident::new(&card.ident, Span::call_site());
+                    let points = Literal::i32_unsuffixed(points);
+
                     Some(quote! { CardKind::#ident => #points })
                 })
         })
     });
 
     quote! {
-        pub fn victory_points(&self) -> i32 {
-            match *self {
+        pub fn victory_points(self) -> i32 {
+            match self {
                 #(#victory_point_matches,)*
                 _ => 0,
             }
@@ -233,8 +238,8 @@ fn is_type_method(cards: &Vec<CardExt>, types: &Vec<String>, type_name: &str) ->
     let method_name = Ident::new(&method_name, Span::call_site());
 
     quote! {
-        pub fn #method_name(&self) -> bool {
-            match *self {
+        pub fn #method_name(self) -> bool {
+            match self {
                 #(#is_type_match_lines,)*
                 _ => false,
             }
@@ -336,8 +341,16 @@ fn parse_description(cards: &Vec<CardExt>) -> TokenStream {
             CardKind::#ident => Some(#def)
         });
 
+        // Writing the integer directly will write the integer type suffix
+        // without separation by an underscore, so we specifically define it as
+        // an unsuffixed literal.
+        let cards = Literal::u8_unsuffixed(cards);
+        let actions = Literal::u8_unsuffixed(actions);
+        let buys = Literal::u8_unsuffixed(buys);
+        let copper = Literal::u8_unsuffixed(copper);
+
         const_defs.push(quote! {
-            const #def: &CardResources = &CardResources {
+            const #def: &Resources = &Resources {
                 cards: #cards,
                 actions: #actions,
                 buys: #buys,
@@ -348,8 +361,8 @@ fn parse_description(cards: &Vec<CardExt>) -> TokenStream {
 
     quote! {
         impl CardKind {
-            pub fn resources(&self) -> Option<&CardResources> {
-                match *self {
+            pub fn resources(self) -> Option<&'static Resources> {
+                match self {
                     #(#matches,)*
                     _ => None,
                 }

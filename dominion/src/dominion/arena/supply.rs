@@ -1,7 +1,7 @@
 use crate::dominion::types::CardPiles;
 use crate::dominion::CardKind;
 
-const BASE_CARDS: &'static [(CardKind, &'static dyn Fn(usize) -> usize)] = &[
+const BASE_CARDS: &[(CardKind, &'static dyn Fn(usize) -> usize)] = &[
     (CardKind::Copper, &|n| 60 - 7 * n),
     (CardKind::Silver, &|_| 40),
     (CardKind::Gold, &|_| 30),
@@ -30,8 +30,8 @@ pub struct Supply {
 }
 
 impl Supply {
-    pub fn new(kingdom_card_ids: &'static [CardKind], num_players: usize) -> Supply {
-        Supply {
+    pub fn new(kingdom_card_ids: &'static [CardKind], num_players: usize) -> Self {
+        Self {
             kingdom_cards: kingdom_card_ids
                 .iter()
                 .map(|&card_id| (card_id, kingdom_card_size(card_id, num_players)))

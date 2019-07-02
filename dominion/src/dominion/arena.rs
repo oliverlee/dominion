@@ -20,8 +20,8 @@ pub struct Arena {
 }
 
 impl Arena {
-    pub fn new(kingdom_set: KingdomSet, num_players: usize) -> Arena {
-        let mut arena = Arena {
+    pub fn new(kingdom_set: KingdomSet, num_players: usize) -> Self {
+        let mut arena = Self {
             supply: Supply::new(kingdom_set.cards(), num_players),
             trash: CardVec::new(),
             players: (0..num_players).map(|_| Player::new()).collect(),
@@ -70,6 +70,7 @@ impl Arena {
         self.supply.is_game_over()
     }
 
+    #[allow(dead_code)]
     pub fn in_deck(&self, player_id: usize, card: CardKind) -> Result<bool> {
         self.player(player_id).map(|player| player.in_deck(card))
     }
@@ -116,19 +117,17 @@ impl Arena {
 
         if self.turn.as_action_phase_mut()?.remaining_actions == 0 {
             Err(Error::NoMoreActions)
+        } else if card.is_action() {
+            self.move_card(
+                Location::Hand { player_id },
+                Location::Play { player_id },
+                CardSpecifier::Card(card),
+            )?;
+            self.turn.as_action_phase_mut().unwrap().remaining_actions -= 1;
+            self.actions.as_mut().unwrap().add_card(card);
+            self.try_resolve(player_id, None)
         } else {
-            if card.is_action() {
-                self.move_card(
-                    Location::Hand { player_id },
-                    Location::Play { player_id },
-                    CardSpecifier::Card(card),
-                )?;
-                self.turn.as_action_phase_mut().unwrap().remaining_actions -= 1;
-                self.actions.as_mut().unwrap().add_card(card);
-                self.try_resolve(player_id, None)
-            } else {
-                Err(Error::InvalidCardChoice)
-            }
+            Err(Error::InvalidCardChoice)
         }
     }
 
@@ -184,7 +183,7 @@ impl Arena {
     }
 
     // Select cards to resolve an action effect.
-    pub fn select_cards(&mut self, player_id: usize, cards: &CardVec) -> Result<()> {
+    pub fn select_cards(&mut self, player_id: usize, cards: &[CardKind]) -> Result<()> {
         if player_id >= self.players.len() {
             Err(Error::InvalidPlayerId)
         } else {
@@ -241,7 +240,7 @@ impl Arena {
         Ok(())
     }
 
-    fn try_resolve(&mut self, player_id: usize, selected_cards: Option<&CardVec>) -> Result<()> {
+    fn try_resolve(&mut self, player_id: usize, selected_cards: Option<&[CardKind]>) -> Result<()> {
         let mut temp: Option<CardActionQueue> = None;
 
         // The Arena contains the ActionEffect to track the state of resolving an action card.
@@ -275,7 +274,7 @@ impl Arena {
     }
 
     fn start_game(&mut self) {
-        for p in self.players.iter_mut() {
+        for p in &mut self.players {
             p.cleanup();
         }
     }

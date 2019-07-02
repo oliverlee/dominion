@@ -3,11 +3,8 @@
 
 mod dominion;
 
-use crate::dominion::command;
-use crate::dominion::command::{Command, ParseCommandError};
-use crate::dominion::{Arena, CardKind, KingdomSet, Result};
-use std::convert::TryInto;
-use std::str::FromStr;
+use crate::dominion::command::{self, Command, ParseCommandError};
+use crate::dominion::{Arena, KingdomSet, Result};
 
 fn main() {
     let mut arena = Arena::new(KingdomSet::FirstGame, 2);
@@ -19,7 +16,7 @@ fn main() {
         for card in iter {
             print!(", {:?}", card);
         }
-        print!("\n");
+        println!();
     }
 
     while !arena.is_game_over() {
@@ -48,19 +45,19 @@ fn main() {
                         println!()
                     }
                     Command::EndPhase => {
-                        let _ = arena.end_turn_phase()?;
+                        arena.end_turn_phase()?;
                         println!("Starting {:?}", arena.turn());
                     }
                     Command::PlayCard(card) => {
-                        let _ = arena.play_card(card)?;
+                        arena.play_card(card)?;
                         println!("Player {} played {:?}", player_id, card);
                     }
                     Command::BuyCard(card) => {
-                        let _ = arena.buy_card(card)?;
+                        arena.buy_card(card)?;
                         println!("Player {} bought {:?}", player_id, card);
                     }
                     Command::SelectCards(cards) => {
-                        let _ = arena.select_cards(player_id, &cards)?;
+                        arena.select_cards(player_id, &cards)?;
                         println!("Player {} selected {:?}", player_id, &cards);
                     }
                 };

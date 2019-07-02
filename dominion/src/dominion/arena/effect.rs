@@ -1,4 +1,4 @@
-use crate::dominion::types::{CardSpecifier, CardVec, Error, Location, Result};
+use crate::dominion::types::{CardSpecifier, Error, Location, Result};
 use crate::dominion::{Arena, CardKind};
 use std::collections::VecDeque;
 
@@ -27,7 +27,7 @@ impl std::fmt::Debug for Effect {
 
 type EffectResult = Result<Option<CardActionQueue>>;
 type ConditionalEffectFunction =
-    fn(arena: &mut Arena, player_id: usize, cards: &CardVec) -> EffectResult;
+    fn(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> EffectResult;
 type UnconditionalEffectFunction =
     fn(arena: &mut Arena, player_id: usize, origin_card: CardKind) -> Option<CardActionQueue>;
 
@@ -38,7 +38,7 @@ struct CardAction {
 }
 
 impl CardAction {
-    fn new(card: CardKind) -> CardAction {
+    fn new(card: CardKind) -> Self {
         let mut effects = Vec::new();
 
         match card {
@@ -70,14 +70,14 @@ impl CardAction {
         }
         effects.push(ADD_RESOURCES_FUNC);
 
-        CardAction { card, effects }
+        Self { card, effects }
     }
 
     fn resolve(
         &mut self,
         arena: &mut Arena,
         player_id: usize,
-        selected_cards: Option<&CardVec>,
+        selected_cards: Option<&[CardKind]>,
     ) -> impl Iterator<Item = EffectResult> {
         let mut results = Vec::new();
 
@@ -103,16 +103,13 @@ impl CardAction {
     }
 
     fn condition(&self) -> Option<&'static str> {
-        self.effects
-            .iter()
-            .filter_map(|&x| {
-                if let &Effect::Conditional(_, desc) = x {
-                    Some(desc)
-                } else {
-                    None
-                }
-            })
-            .next()
+        self.effects.iter().find_map(|&x| {
+            if let Effect::Conditional(_, desc) = *x {
+                Some(desc)
+            } else {
+                None
+            }
+        })
     }
 }
 
@@ -122,23 +119,23 @@ pub(crate) struct CardActionQueue {
 }
 
 impl CardActionQueue {
-    pub(crate) fn new() -> CardActionQueue {
-        CardActionQueue {
+    pub(crate) fn new() -> Self {
+        Self {
             actions: VecDeque::new(),
         }
     }
 
-    fn from_card(card: CardKind) -> CardActionQueue {
+    fn from_card(card: CardKind) -> Self {
         let mut actions = VecDeque::new();
         actions.push_back(CardAction::new(card));
-        CardActionQueue { actions }
+        Self { actions }
     }
 
     pub(crate) fn add_card(&mut self, card: CardKind) {
         self.actions.push_back(CardAction::new(card));
     }
 
-    fn append(&mut self, other: &mut CardActionQueue) {
+    fn append(&mut self, other: &mut Self) {
         self.actions.append(&mut other.actions);
     }
 
@@ -147,14 +144,14 @@ impl CardActionQueue {
     }
 
     pub(crate) fn resolve_condition(&self) -> Option<&'static str> {
-        self.actions.iter().filter_map(|x| x.condition()).next()
+        self.actions.iter().find_map(CardAction::condition)
     }
 
     pub(crate) fn resolve(
         &mut self,
         arena: &mut Arena,
         player_id: usize,
-        selected_cards: Option<&CardVec>,
+        selected_cards: Option<&[CardKind]>,
     ) -> Result<()> {
         let mut player_id = player_id;
         let mut selected_cards = selected_cards;
@@ -166,7 +163,7 @@ impl CardActionQueue {
                     .unwrap()
                     .resolve(arena, player_id, selected_cards);
 
-            for r in results.into_iter() {
+            for r in results {
                 match r {
                     Ok(mut actions) => {
                         if let Some(ref mut actions) = actions {
@@ -205,14 +202,14 @@ fn add_resources_func(arena: &mut Arena, _: usize, card: CardKind) -> Option<Car
     None
 }
 
-const ADD_RESOURCES_FUNC: &'static Effect = &Effect::Unconditional(add_resources_func);
+const ADD_RESOURCES_FUNC: &Effect = &Effect::Unconditional(add_resources_func);
 
-const MILITIA_EFFECT: &'static Effect = &Effect::Conditional(
+const MILITIA_EFFECT: &Effect = &Effect::Conditional(
     militia_effect,
     "Each other player discards down to 3 cards in their hand.",
 );
 
-fn militia_effect(arena: &mut Arena, player_id: usize, cards: &CardVec) -> EffectResult {
+fn militia_effect(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> EffectResult {
     let error = Error::UnresolvedActionEffect(&MILITIA_EFFECT.description());
 
     // TODO: Handle games with more than 2 players.
@@ -224,7 +221,7 @@ fn militia_effect(arena: &mut Arena, player_id: usize, cards: &CardVec) -> Effec
     let mut hand2 = hand.clone();
 
     if hand.len() <= 3 {
-        if cards.len() != 0 {
+        if !cards.is_empty() {
             return Err(error);
         }
     } else if hand.len() == cards.len() + 3 {
@@ -239,22 +236,22 @@ fn militia_effect(arena: &mut Arena, player_id: usize, cards: &CardVec) -> Effec
     let player = arena.player_mut(player_id).unwrap();
     std::mem::swap(&mut player.hand, &mut hand2);
     for &card in cards {
-        &player.discard_pile.push(card);
+        player.discard_pile.push(card);
     }
 
     Ok(None)
 }
 
-const THRONE_ROOM_EFFECT: &'static Effect = &Effect::Conditional(
+const THRONE_ROOM_EFFECT: &Effect = &Effect::Conditional(
     throne_room_effect,
     "You may play an Action card from your hand twice.",
 );
 
-fn throne_room_effect(arena: &mut Arena, _: usize, cards: &CardVec) -> EffectResult {
+fn throne_room_effect(arena: &mut Arena, _: usize, cards: &[CardKind]) -> EffectResult {
     let error = Error::UnresolvedActionEffect(&THRONE_ROOM_EFFECT.description());
     let card_index;
 
-    if cards.len() == 0 {
+    if cards.is_empty() {
         card_index = None;
     } else if cards.len() == 1 {
         match arena
