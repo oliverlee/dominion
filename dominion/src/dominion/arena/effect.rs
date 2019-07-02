@@ -114,12 +114,12 @@ impl CardAction {
 }
 
 #[derive(Debug)]
-pub(crate) struct CardActionQueue {
+pub(super) struct CardActionQueue {
     actions: VecDeque<CardAction>,
 }
 
 impl CardActionQueue {
-    pub(crate) fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             actions: VecDeque::new(),
         }
@@ -131,7 +131,7 @@ impl CardActionQueue {
         Self { actions }
     }
 
-    pub(crate) fn add_card(&mut self, card: CardKind) {
+    pub(super) fn add_card(&mut self, card: CardKind) {
         self.actions.push_back(CardAction::new(card));
     }
 
@@ -139,15 +139,15 @@ impl CardActionQueue {
         self.actions.append(&mut other.actions);
     }
 
-    pub(crate) fn is_resolved(&self) -> bool {
+    pub(super) fn is_resolved(&self) -> bool {
         self.actions.is_empty()
     }
 
-    pub(crate) fn resolve_condition(&self) -> Option<&'static str> {
+    pub(super) fn resolve_condition(&self) -> Option<&'static str> {
         self.actions.iter().find_map(CardAction::condition)
     }
 
-    pub(crate) fn resolve(
+    pub(super) fn resolve(
         &mut self,
         arena: &mut Arena,
         player_id: usize,
