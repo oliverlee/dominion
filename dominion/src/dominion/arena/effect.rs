@@ -11,8 +11,8 @@ mod throne_room;
 mod vassal;
 
 pub(self) enum Effect {
-    Conditional(ConditionalEffectFunction, &'static str),
-    Unconditional(UnconditionalEffectFunction),
+    Conditional(ConditionalFunction, &'static str),
+    Unconditional(UnconditionalFunction),
 }
 
 impl Effect {
@@ -47,16 +47,15 @@ impl PartialEq for Effect {
 }
 
 #[derive(Debug, PartialEq)]
-pub(self) enum EffectOutput {
+pub(self) enum Outcome {
     Actions(CardActionQueue),
     Effect(&'static Effect),
     None,
 }
 
-type ConditionalEffectFunction =
-    fn(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<EffectOutput>;
-type UnconditionalEffectFunction =
-    fn(arena: &mut Arena, player_id: usize, origin_card: CardKind) -> EffectOutput;
+type ConditionalFunction =
+    fn(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Outcome>;
+type UnconditionalFunction = fn(arena: &mut Arena, player_id: usize, card: CardKind) -> Outcome;
 
 #[derive(Debug, PartialEq)]
 struct CardAction {
@@ -113,11 +112,11 @@ impl CardAction {
             };
 
             match result {
-                Ok(mut output) => {
-                    match &mut output {
-                        EffectOutput::Actions(a) => actions.append(a),
-                        EffectOutput::Effect(e) => self.effects.push_back(e),
-                        EffectOutput::None => (),
+                Ok(mut outcome) => {
+                    match &mut outcome {
+                        Outcome::Actions(a) => actions.append(a),
+                        Outcome::Effect(e) => self.effects.push_back(e),
+                        Outcome::None => (),
                     }
                     self.effects.pop_front();
                 }
@@ -207,7 +206,7 @@ impl CardActionQueue {
     }
 }
 
-fn add_resources_func(arena: &mut Arena, _: usize, card: CardKind) -> EffectOutput {
+fn add_resources_func(arena: &mut Arena, _: usize, card: CardKind) -> Outcome {
     if let Some(resources) = card.resources() {
         let action_phase = arena.turn.as_action_phase_mut().unwrap();
 
@@ -222,7 +221,7 @@ fn add_resources_func(arena: &mut Arena, _: usize, card: CardKind) -> EffectOutp
     }
 
     // Adding card resources never adds new effects to the queue.
-    EffectOutput::None
+    Outcome::None
 }
 
 const ADD_RESOURCES_FUNC: &Effect = &Effect::Unconditional(add_resources_func);

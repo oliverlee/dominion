@@ -1,4 +1,4 @@
-use crate::dominion::arena::effect::{Effect, EffectOutput};
+use crate::dominion::arena::effect::{Effect, Outcome};
 use crate::dominion::types::{CardSpecifier, Error, Location, Result};
 use crate::dominion::{Arena, CardKind};
 
@@ -7,7 +7,7 @@ pub(super) const EFFECT: &Effect = &Effect::Conditional(
     "Look through your discard pile. You may put a card from it onto your deck.",
 );
 
-fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<EffectOutput> {
+fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Outcome> {
     let error = Err(Error::UnresolvedActionEffect(&EFFECT.description()));
 
     if player_id != arena.current_player_id {
@@ -42,5 +42,5 @@ fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Effec
             .unwrap();
     }
 
-    Ok(EffectOutput::None)
+    Ok(Outcome::None)
 }

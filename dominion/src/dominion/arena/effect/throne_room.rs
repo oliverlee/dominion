@@ -1,11 +1,11 @@
-use crate::dominion::arena::effect::{CardActionQueue, Effect, EffectOutput};
+use crate::dominion::arena::effect::{CardActionQueue, Effect, Outcome};
 use crate::dominion::types::{CardSpecifier, Error, Location, Result};
 use crate::dominion::{Arena, CardKind};
 
 pub(super) const EFFECT: &Effect =
     &Effect::Conditional(func, "You may play an Action card from your hand twice.");
 
-fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<EffectOutput> {
+fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Outcome> {
     let error = Err(Error::UnresolvedActionEffect(&EFFECT.description()));
 
     if player_id != arena.current_player_id {
@@ -46,9 +46,9 @@ fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Effec
         let mut actions = CardActionQueue::from_card(cards[0]);
         actions.add_card(cards[0]);
 
-        Ok(EffectOutput::Actions(actions))
+        Ok(Outcome::Actions(actions))
     } else {
-        Ok(EffectOutput::None)
+        Ok(Outcome::None)
     }
 }
 
@@ -66,10 +66,7 @@ mod test {
 
         let cards = [];
 
-        assert_eq!(
-            func(&mut arena, player_id, &cards),
-            Ok(EffectOutput::None)
-        );
+        assert_eq!(func(&mut arena, player_id, &cards), Ok(Outcome::None));
     }
 
     #[test]
@@ -112,7 +109,7 @@ mod test {
 
         assert_eq!(
             func(&mut arena, player_id, &cards),
-            Ok(EffectOutput::Actions({
+            Ok(Outcome::Actions({
                 let mut actions = CardActionQueue::new();
 
                 actions.add_card(cards[0]);

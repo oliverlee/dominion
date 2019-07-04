@@ -1,4 +1,4 @@
-use crate::dominion::arena::effect::{Effect, EffectOutput};
+use crate::dominion::arena::effect::{Effect, Outcome};
 use crate::dominion::types::{Error, Result};
 use crate::dominion::{Arena, CardKind};
 
@@ -7,7 +7,7 @@ pub(super) const EFFECT: &Effect = &Effect::Conditional(
     "Each other player discards down to 3 cards in their hand.",
 );
 
-fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<EffectOutput> {
+fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Outcome> {
     let error = Err(Error::UnresolvedActionEffect(&EFFECT.description()));
 
     // TODO: Handle games with more than 2 players.
@@ -37,7 +37,7 @@ fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Effec
         player.discard_pile.push(card);
     }
 
-    Ok(EffectOutput::None)
+    Ok(Outcome::None)
 }
 
 #[cfg(test)]
@@ -55,10 +55,7 @@ mod test {
         arena.player_mut(player_id).unwrap().hand.clear();
         let cards = [];
 
-        assert_eq!(
-            func(&mut arena, player_id, &cards),
-            Ok(EffectOutput::None)
-        );
+        assert_eq!(func(&mut arena, player_id, &cards), Ok(Outcome::None));
     }
 
     #[test]
@@ -71,10 +68,7 @@ mod test {
         }
         let cards = [];
 
-        assert_eq!(
-            func(&mut arena, player_id, &cards),
-            Ok(EffectOutput::None)
-        );
+        assert_eq!(func(&mut arena, player_id, &cards), Ok(Outcome::None));
     }
 
     #[test]
@@ -87,10 +81,7 @@ mod test {
         }
         let cards = [];
 
-        assert_eq!(
-            func(&mut arena, player_id, &cards),
-            Ok(EffectOutput::None)
-        );
+        assert_eq!(func(&mut arena, player_id, &cards), Ok(Outcome::None));
     }
 
     #[test]
@@ -103,10 +94,7 @@ mod test {
         }
         let cards = [];
 
-        assert_eq!(
-            func(&mut arena, player_id, &cards),
-            Ok(EffectOutput::None)
-        );
+        assert_eq!(func(&mut arena, player_id, &cards), Ok(Outcome::None));
     }
 
     #[test]
@@ -119,10 +107,7 @@ mod test {
         }
         let cards = [arena.player(player_id).unwrap().hand[0]];
 
-        assert_eq!(
-            func(&mut arena, player_id, &cards),
-            Ok(EffectOutput::None)
-        );
+        assert_eq!(func(&mut arena, player_id, &cards), Ok(Outcome::None));
     }
 
     #[test]
@@ -155,10 +140,7 @@ mod test {
         ];
 
         assert_eq!(arena.player(player_id).unwrap().hand.len(), 5);
-        assert_eq!(
-            func(&mut arena, player_id, &cards),
-            Ok(EffectOutput::None)
-        );
+        assert_eq!(func(&mut arena, player_id, &cards), Ok(Outcome::None));
     }
 
     #[test]
@@ -174,10 +156,7 @@ mod test {
         hand.push(CardKind::Copper);
         hand.push(CardKind::Copper);
 
-        let cards = [
-            CardKind::Silver,
-            CardKind::Silver,
-        ];
+        let cards = [CardKind::Silver, CardKind::Silver];
 
         assert_eq!(arena.player(player_id).unwrap().hand.len(), 5);
         assert_eq!(
@@ -199,10 +178,7 @@ mod test {
         hand.push(CardKind::Copper);
         hand.push(CardKind::Copper);
 
-        let cards = [
-            CardKind::Silver,
-            CardKind::Silver,
-        ];
+        let cards = [CardKind::Silver, CardKind::Silver];
 
         assert_eq!(arena.player(player_id).unwrap().hand.len(), 5);
         assert_eq!(

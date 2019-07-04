@@ -1,10 +1,10 @@
-use crate::dominion::arena::effect::{CardActionQueue, Effect, EffectOutput};
+use crate::dominion::arena::effect::{CardActionQueue, Effect, Outcome};
 use crate::dominion::types::{Error, Location, Result};
 use crate::dominion::{Arena, CardKind};
 
 pub(super) const EFFECT: &Effect = &Effect::Unconditional(discard);
 
-fn discard(arena: &mut Arena, _: usize, _: CardKind) -> EffectOutput {
+fn discard(arena: &mut Arena, _: usize, _: CardKind) -> Outcome {
     let player = arena.current_player_mut();
     match player.draw_card() {
         Some(card) => {
@@ -18,9 +18,9 @@ fn discard(arena: &mut Arena, _: usize, _: CardKind) -> EffectOutput {
                 )
                 .unwrap();
 
-            EffectOutput::Effect(PLAY_ACTION)
+            Outcome::Effect(PLAY_ACTION)
         }
-        None => EffectOutput::None,
+        None => Outcome::None,
     }
 }
 
@@ -30,7 +30,7 @@ const PLAY_ACTION: &Effect = &Effect::Conditional(
     "Discard the top card of your deck. If it’s an Action card, you may play it.",
 );
 
-fn select(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<EffectOutput> {
+fn select(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Outcome> {
     let error = Err(Error::UnresolvedActionEffect(&EFFECT.description()));
 
     if player_id != arena.current_player_id {
@@ -55,8 +55,8 @@ fn select(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Eff
     }
 
     if play_card {
-        Ok(EffectOutput::Actions(CardActionQueue::from_card(cards[0])))
+        Ok(Outcome::Actions(CardActionQueue::from_card(cards[0])))
     } else {
-        Ok(EffectOutput::None)
+        Ok(Outcome::None)
     }
 }
