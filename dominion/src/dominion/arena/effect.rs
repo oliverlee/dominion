@@ -5,6 +5,7 @@ use std::collections::VecDeque;
 // Each card effect is defined in it's own file.
 mod cellar;
 mod chapel;
+mod harbinger;
 mod militia;
 mod throne_room;
 
@@ -48,25 +49,17 @@ impl CardAction {
         let mut effects = Vec::new();
 
         match card {
-            CardKind::Cellar => {
-                effects.push(cellar::EFFECT);
-            }
-            CardKind::Chapel => {
-                effects.push(chapel::EFFECT);
-            }
-            //CardKind::Harbinger => unimplemeted!(),
+            CardKind::Cellar => effects.push(cellar::EFFECT),
+            CardKind::Chapel => effects.push(chapel::EFFECT),
+            CardKind::Harbinger => effects.push(harbinger::EFFECT),
             //CardKind::Vassal => unimplemeted!(),
             //CardKind::Workshop => unimplemeted!(),
             //CardKind::Bureaucrat => unimplemeted!(),
-            CardKind::Militia => {
-                effects.push(militia::EFFECT);
-            }
+            CardKind::Militia => effects.push(militia::EFFECT),
             //CardKind::Moneylender => unimplemeted!(),
             //CardKind::Poacher => unimplemeted!(),
             //CardKind::Remodel => unimplemeted!(),
-            CardKind::ThroneRoom => {
-                effects.push(throne_room::EFFECT);
-            }
+            CardKind::ThroneRoom => effects.push(throne_room::EFFECT),
             //CardKind::Bandit => unimplemeted!(),
             //CardKind::CouncilRoom => unimplemeted!(),
             //CardKind::Festival => unimplemeted!(),
@@ -136,9 +129,11 @@ impl CardActionQueue {
     }
 
     fn from_card(card: CardKind) -> Self {
-        let mut actions = VecDeque::new();
-        actions.push_back(CardAction::new(card));
-        Self { actions }
+        let mut actions = Self::new();
+
+        actions.add_card(card);
+
+        actions
     }
 
     pub(super) fn add_card(&mut self, card: CardKind) {
