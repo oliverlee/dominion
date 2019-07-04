@@ -33,6 +33,20 @@ impl std::fmt::Debug for Effect {
     }
 }
 
+impl PartialEq for Effect {
+    fn eq(&self, other: &Self) -> bool {
+        use Effect::*;
+        match (self, other) {
+            (Conditional(f1, s1), Conditional(f2, s2)) => {
+                (f1 as *const _ == f2 as *const _) && (s1 == s2)
+            }
+            (Unconditional(f1), Unconditional(f2)) => f1 as *const _ == f2 as *const _,
+            _ => false,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
 pub(self) enum EffectOutput {
     Actions(CardActionQueue),
     Effect(&'static Effect),
@@ -44,7 +58,7 @@ type ConditionalEffectFunction =
 type UnconditionalEffectFunction =
     fn(arena: &mut Arena, player_id: usize, origin_card: CardKind) -> EffectOutput;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 struct CardAction {
     card: CardKind,
     effects: VecDeque<&'static Effect>,
@@ -125,7 +139,7 @@ impl CardAction {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub(super) struct CardActionQueue {
     actions: VecDeque<CardAction>,
 }
@@ -214,11 +228,13 @@ fn add_resources_func(arena: &mut Arena, _: usize, card: CardKind) -> EffectOutp
 const ADD_RESOURCES_FUNC: &Effect = &Effect::Unconditional(add_resources_func);
 
 #[cfg(test)]
+mod test_util;
+
+#[cfg(test)]
 mod test {
     use super::*;
     use crate::dominion::turn::{self, Turn};
     use crate::dominion::types::Location;
-    use crate::dominion::{Arena, KingdomSet};
 
     #[test]
     fn empty_stack_is_resolved() {
@@ -226,18 +242,9 @@ mod test {
         assert!(stacks.is_resolved());
     }
 
-    fn setup_arena_actions() -> (Arena, CardActionQueue) {
-        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
-        let mut actions: Option<CardActionQueue> = None;
-
-        std::mem::swap(&mut arena.actions, &mut actions);
-
-        (arena, actions.unwrap())
-    }
-
     #[test]
     fn resolve_market_stack() {
-        let (mut arena, mut actions) = setup_arena_actions();
+        let (mut arena, mut actions) = test_util::setup_arena_actions();
         actions.add_card(CardKind::Market);
 
         let r = actions.resolve(&mut arena, 0, None);
@@ -258,7 +265,7 @@ mod test {
 
     #[test]
     fn resolve_militia_stack() {
-        let (mut arena, mut actions) = setup_arena_actions();
+        let (mut arena, mut actions) = test_util::setup_arena_actions();
         actions.add_card(CardKind::Militia);
 
         let r = actions.resolve(&mut arena, 0, None);
@@ -320,7 +327,7 @@ mod test {
 
     #[test]
     fn resolve_throne_room_stack_no_action() {
-        let (mut arena, mut actions) = setup_arena_actions();
+        let (mut arena, mut actions) = test_util::setup_arena_actions();
         actions.add_card(CardKind::ThroneRoom);
 
         let r = actions.resolve(&mut arena, 0, None);
@@ -352,7 +359,7 @@ mod test {
 
     #[test]
     fn resolve_throne_room_stack_smithy() {
-        let (mut arena, mut actions) = setup_arena_actions();
+        let (mut arena, mut actions) = test_util::setup_arena_actions();
         arena.current_player_mut().hand.push(CardKind::Smithy);
 
         assert_eq!(arena.current_player().hand.len(), 6);
@@ -388,7 +395,7 @@ mod test {
 
     #[test]
     fn resolve_throne_room_stack_militia() {
-        let (mut arena, mut actions) = setup_arena_actions();
+        let (mut arena, mut actions) = test_util::setup_arena_actions();
         arena.current_player_mut().hand.push(CardKind::Militia);
 
         assert_eq!(arena.current_player().hand.len(), 6);
