@@ -8,6 +8,7 @@ mod chapel;
 mod harbinger;
 mod militia;
 mod throne_room;
+mod vassal;
 
 pub(self) enum Effect {
     Conditional(ConditionalEffectFunction, &'static str),
@@ -32,34 +33,39 @@ impl std::fmt::Debug for Effect {
     }
 }
 
-type EffectResult = Result<Option<CardActionQueue>>;
+pub(self) enum EffectOutput {
+    Actions(CardActionQueue),
+    Effect(&'static Effect),
+    None,
+}
+
 type ConditionalEffectFunction =
-    fn(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> EffectResult;
+    fn(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<EffectOutput>;
 type UnconditionalEffectFunction =
-    fn(arena: &mut Arena, player_id: usize, origin_card: CardKind) -> Option<CardActionQueue>;
+    fn(arena: &mut Arena, player_id: usize, origin_card: CardKind) -> EffectOutput;
 
 #[derive(Debug)]
 struct CardAction {
     card: CardKind,
-    effects: Vec<&'static Effect>,
+    effects: VecDeque<&'static Effect>,
 }
-
 impl CardAction {
     fn new(card: CardKind) -> Self {
-        let mut effects = Vec::new();
+        let mut effects = VecDeque::new();
 
+        effects.push_back(ADD_RESOURCES_FUNC);
         match card {
-            CardKind::Cellar => effects.push(cellar::EFFECT),
-            CardKind::Chapel => effects.push(chapel::EFFECT),
-            CardKind::Harbinger => effects.push(harbinger::EFFECT),
-            //CardKind::Vassal => unimplemeted!(),
+            CardKind::Cellar => effects.push_back(cellar::EFFECT),
+            CardKind::Chapel => effects.push_back(chapel::EFFECT),
+            CardKind::Harbinger => effects.push_back(harbinger::EFFECT),
+            CardKind::Vassal => effects.push_back(vassal::EFFECT),
             //CardKind::Workshop => unimplemeted!(),
             //CardKind::Bureaucrat => unimplemeted!(),
-            CardKind::Militia => effects.push(militia::EFFECT),
+            CardKind::Militia => effects.push_back(militia::EFFECT),
             //CardKind::Moneylender => unimplemeted!(),
             //CardKind::Poacher => unimplemeted!(),
             //CardKind::Remodel => unimplemeted!(),
-            CardKind::ThroneRoom => effects.push(throne_room::EFFECT),
+            CardKind::ThroneRoom => effects.push_back(throne_room::EFFECT),
             //CardKind::Bandit => unimplemeted!(),
             //CardKind::CouncilRoom => unimplemeted!(),
             //CardKind::Festival => unimplemeted!(),
@@ -71,7 +77,6 @@ impl CardAction {
             //CardKind::Artisan => unimplemeted!(),
             _ => (),
         }
-        effects.push(ADD_RESOURCES_FUNC);
 
         Self { card, effects }
     }
@@ -81,11 +86,11 @@ impl CardAction {
         arena: &mut Arena,
         player_id: usize,
         selected_cards: Option<&[CardKind]>,
-    ) -> impl Iterator<Item = EffectResult> {
-        let mut results = Vec::new();
+    ) -> (Option<Error>, CardActionQueue) {
+        let mut actions = CardActionQueue::new();
 
         while !self.effects.is_empty() {
-            let result = match self.effects.last().unwrap() {
+            let result = match self.effects.front().unwrap() {
                 Effect::Conditional(f, desc) => match selected_cards {
                     Some(cards) => f(arena, player_id, cards),
                     None => Err(Error::UnresolvedActionEffect(desc)),
@@ -93,16 +98,20 @@ impl CardAction {
                 Effect::Unconditional(f) => Ok(f(arena, player_id, self.card)),
             };
 
-            results.push(result);
-
-            if results.last().unwrap().is_ok() {
-                self.effects.pop();
-            } else {
-                break;
+            match result {
+                Ok(mut output) => {
+                    match &mut output {
+                        EffectOutput::Actions(a) => actions.append(a),
+                        EffectOutput::Effect(e) => self.effects.push_back(e),
+                        EffectOutput::None => (),
+                    }
+                    self.effects.pop_front();
+                }
+                Err(error) => return (Some(error), actions),
             }
         }
 
-        results.into_iter()
+        (None, actions)
     }
 
     fn condition(&self) -> Option<&'static str> {
@@ -162,21 +171,16 @@ impl CardActionQueue {
         let mut selected_cards = selected_cards;
 
         while !self.actions.is_empty() {
-            let results =
+            let (error, mut spawned) =
                 self.actions
                     .front_mut()
                     .unwrap()
                     .resolve(arena, player_id, selected_cards);
 
-            for r in results {
-                match r {
-                    Ok(mut actions) => {
-                        if let Some(ref mut actions) = actions {
-                            self.append(actions);
-                        }
-                    }
-                    Err(e) => return Err(e),
-                }
+            self.append(&mut spawned);
+
+            if let Some(error) = error {
+                return Err(error);
             }
 
             // Don't use the same selected cards in subsequent spawned action card effects.
@@ -189,7 +193,7 @@ impl CardActionQueue {
     }
 }
 
-fn add_resources_func(arena: &mut Arena, _: usize, card: CardKind) -> Option<CardActionQueue> {
+fn add_resources_func(arena: &mut Arena, _: usize, card: CardKind) -> EffectOutput {
     if let Some(resources) = card.resources() {
         let action_phase = arena.turn.as_action_phase_mut().unwrap();
 
@@ -204,7 +208,7 @@ fn add_resources_func(arena: &mut Arena, _: usize, card: CardKind) -> Option<Car
     }
 
     // Adding card resources never adds new effects to the queue.
-    None
+    EffectOutput::None
 }
 
 const ADD_RESOURCES_FUNC: &Effect = &Effect::Unconditional(add_resources_func);

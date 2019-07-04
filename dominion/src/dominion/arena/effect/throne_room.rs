@@ -1,11 +1,11 @@
-use crate::dominion::arena::effect::{CardActionQueue, Effect, EffectResult};
-use crate::dominion::types::{CardSpecifier, Error, Location};
+use crate::dominion::arena::effect::{CardActionQueue, Effect, EffectOutput};
+use crate::dominion::types::{CardSpecifier, Error, Location, Result};
 use crate::dominion::{Arena, CardKind};
 
 pub(super) const EFFECT: &Effect =
     &Effect::Conditional(func, "You may play an Action card from your hand twice.");
 
-fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> EffectResult {
+fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<EffectOutput> {
     let error = Err(Error::UnresolvedActionEffect(&EFFECT.description()));
 
     if player_id != arena.current_player_id {
@@ -42,8 +42,8 @@ fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> EffectResult
         let mut actions = CardActionQueue::from_card(cards[0]);
         actions.add_card(cards[0]);
 
-        Ok(Some(actions))
+        Ok(EffectOutput::Actions(actions))
     } else {
-        Ok(None)
+        Ok(EffectOutput::None)
     }
 }

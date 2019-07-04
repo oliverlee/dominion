@@ -1,5 +1,5 @@
-use crate::dominion::arena::effect::{Effect, EffectResult};
-use crate::dominion::types::Error;
+use crate::dominion::arena::effect::{Effect, EffectOutput};
+use crate::dominion::types::{Error, Result};
 use crate::dominion::{Arena, CardKind};
 
 pub(super) const EFFECT: &Effect = &Effect::Conditional(
@@ -7,7 +7,7 @@ pub(super) const EFFECT: &Effect = &Effect::Conditional(
     "Each other player discards down to 3 cards in their hand.",
 );
 
-fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> EffectResult {
+fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<EffectOutput> {
     let error = Err(Error::UnresolvedActionEffect(&EFFECT.description()));
 
     // TODO: Handle games with more than 2 players.
@@ -37,5 +37,5 @@ fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> EffectResult
         player.discard_pile.push(card);
     }
 
-    Ok(None)
+    Ok(EffectOutput::None)
 }

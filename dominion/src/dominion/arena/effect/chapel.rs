@@ -1,11 +1,11 @@
-use crate::dominion::arena::effect::{Effect, EffectResult};
-use crate::dominion::types::Error;
+use crate::dominion::arena::effect::{Effect, EffectOutput};
+use crate::dominion::types::{Error, Result};
 use crate::dominion::{Arena, CardKind};
 
 pub(super) const EFFECT: &Effect =
     &Effect::Conditional(func, "Trash up to 4 cards from your hand.");
 
-fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> EffectResult {
+fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<EffectOutput> {
     let error = Err(Error::UnresolvedActionEffect(&EFFECT.description()));
 
     if player_id != arena.current_player_id {
@@ -34,5 +34,5 @@ fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> EffectResult
         arena.trash.push(card);
     }
 
-    Ok(None)
+    Ok(EffectOutput::None)
 }

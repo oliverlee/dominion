@@ -1,4 +1,4 @@
-use crate::dominion::types::CardVec;
+use crate::dominion::types::{CardSpecifier, CardVec};
 use crate::dominion::CardKind;
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
@@ -41,7 +41,7 @@ impl Player {
         p
     }
 
-    pub(super) fn draw_card(&mut self) {
+    pub(super) fn draw_card(&mut self) -> Option<CardSpecifier> {
         if self.draw_pile.is_empty() {
             std::mem::swap(&mut self.draw_pile, &mut self.discard_pile);
             self.shuffle_deck();
@@ -49,7 +49,10 @@ impl Player {
 
         // We consider the top of the draw pile to be the end that is popped.
         if let Some(x) = self.draw_pile.pop() {
-            self.hand.push(x)
+            self.hand.push(x);
+            Some(CardSpecifier::Index(self.hand.len() - 1))
+        } else {
+            None
         }
     }
 
