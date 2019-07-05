@@ -28,11 +28,94 @@ fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Outco
         return error;
     }
 
-    let player = arena.current_player_mut();
-    std::mem::swap(&mut player.hand, &mut hand);
+    std::mem::swap(&mut arena.current_player_mut().hand, &mut hand);
     for &card in cards {
         arena.trash.push(card);
     }
 
     Ok(Outcome::None)
+}
+
+#[cfg(test)]
+mod test {
+    use super::super::test_util;
+    use super::*;
+    use crate::dominion::types::Error;
+    use crate::dominion::CardKind;
+
+    #[test]
+    fn trash_0_cards() {
+        let mut arena = test_util::setup_arena();
+        let player_id = arena.current_player_id;
+
+        let hand_size = arena.current_player().hand.len();
+        let cards = [];
+
+        assert_eq!(func(&mut arena, player_id, &cards), Ok(Outcome::None));
+        assert_eq!(arena.current_player().hand.len(), hand_size);
+        assert_eq!(arena.trash.len(), cards.len());
+    }
+
+    #[test]
+    fn trash_1_card() {
+        let mut arena = test_util::setup_arena();
+        let player_id = arena.current_player_id;
+
+        let hand = &arena.current_player().hand;
+        let hand_size = hand.len();
+        let cards = [hand[0]];
+
+        assert_eq!(func(&mut arena, player_id, &cards), Ok(Outcome::None));
+        assert_eq!(arena.current_player().hand.len(), hand_size - cards.len());
+        assert_eq!(arena.trash.len(), cards.len());
+    }
+
+    #[test]
+    fn trash_card_not_in_hand() {
+        let mut arena = test_util::setup_arena();
+        let player_id = arena.current_player_id;
+
+        let hand = &arena.current_player().hand;
+        let hand_size = hand.len();
+        let cards = [CardKind::Gold];
+
+        assert!(!hand.contains(&cards[0]));
+        assert_eq!(
+            func(&mut arena, player_id, &cards),
+            Err(Error::UnresolvedActionEffect(EFFECT.description()))
+        );
+        assert_eq!(arena.current_player().hand.len(), hand_size);
+        assert_eq!(arena.trash.len(), 0);
+    }
+
+    #[test]
+    fn trash_4_cards() {
+        let mut arena = test_util::setup_arena();
+        let player_id = arena.current_player_id;
+
+        let hand = &arena.current_player().hand;
+        let hand_size = hand.len();
+        let cards = [hand[0], hand[1], hand[2], hand[3]];
+
+        assert_eq!(func(&mut arena, player_id, &cards), Ok(Outcome::None));
+        assert_eq!(arena.current_player().hand.len(), hand_size - cards.len());
+        assert_eq!(arena.trash.len(), cards.len());
+    }
+
+    #[test]
+    fn trash_5_cards() {
+        let mut arena = test_util::setup_arena();
+        let player_id = arena.current_player_id;
+
+        let hand = &arena.current_player().hand;
+        let hand_size = hand.len();
+        let cards = [hand[0], hand[1], hand[2], hand[3], hand[4]];
+
+        assert_eq!(
+            func(&mut arena, player_id, &cards),
+            Err(Error::UnresolvedActionEffect(EFFECT.description()))
+        );
+        assert_eq!(arena.current_player().hand.len(), hand_size);
+        assert_eq!(arena.trash.len(), 0);
+    }
 }
