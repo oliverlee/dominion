@@ -5,8 +5,7 @@ use crate::dominion::{Arena, CardKind};
 pub(super) const EFFECT: &Effect = &Effect::Unconditional(discard);
 
 fn discard(arena: &mut Arena, _: usize, _: CardKind) -> Outcome {
-    let player = arena.current_player_mut();
-    match player.draw_card() {
+    match arena.current_player_mut().draw_card() {
         Some(card) => {
             let player_id = arena.current_player_id;
 
@@ -18,20 +17,32 @@ fn discard(arena: &mut Arena, _: usize, _: CardKind) -> Outcome {
                 )
                 .unwrap();
 
-            Outcome::Effect(PLAY_ACTION)
+            if arena
+                .current_player()
+                .discard_pile
+                .last()
+                .unwrap()
+                .is_action()
+            {
+                Outcome::Effect(SECONDARY_EFFECT)
+            } else {
+                Outcome::None
+            }
         }
         None => Outcome::None,
     }
 }
 
 #[allow(clippy::non_ascii_literal)]
-const PLAY_ACTION: &Effect = &Effect::Conditional(
+const SECONDARY_EFFECT: &Effect = &Effect::Conditional(
     select,
     "Discard the top card of your deck. If it’s an Action card, you may play it.",
 );
 
 fn select(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Outcome> {
-    let error = Err(Error::UnresolvedActionEffect(&EFFECT.description()));
+    let error = Err(Error::UnresolvedActionEffect(
+        &SECONDARY_EFFECT.description(),
+    ));
 
     if player_id != arena.current_player_id {
         return error;
@@ -58,5 +69,129 @@ fn select(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Out
         Ok(Outcome::Actions(CardActionQueue::from_card(cards[0])))
     } else {
         Ok(Outcome::None)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::super::test_util;
+    use super::*;
+    use crate::dominion::types::Error;
+    use crate::dominion::{Arena, CardKind};
+
+    #[test]
+    fn discard_empty_draw_and_discard_pile() {
+        let mut arena = test_util::setup_arena();
+        let ignored_player_id = arena.current_player_id;
+        let ignored_card = CardKind::Silver;
+
+        let player = arena.current_player_mut();
+        player.discard_pile.clear();
+        player.draw_pile.clear();
+
+        assert_eq!(
+            discard(&mut arena, ignored_player_id, ignored_card),
+            Outcome::None
+        );
+    }
+
+    #[test]
+    fn discard_non_empty_draw_discard_pile_non_action() {
+        let mut arena = test_util::setup_arena();
+        let ignored_player_id = arena.current_player_id;
+        let ignored_card = CardKind::Silver;
+
+        let player = arena.current_player_mut();
+        player.discard_pile.clear();
+        player.draw_pile.clear();
+        player.draw_pile.push(CardKind::Province);
+
+        assert!(!CardKind::Province.is_action());
+        assert_eq!(
+            discard(&mut arena, ignored_player_id, ignored_card),
+            Outcome::None
+        );
+    }
+
+    #[test]
+    fn discard_non_empty_draw_discard_pile_action() {
+        let mut arena = test_util::setup_arena();
+        let ignored_player_id = arena.current_player_id;
+        let ignored_card = CardKind::Silver;
+
+        let player = arena.current_player_mut();
+        player.discard_pile.clear();
+        player.draw_pile.clear();
+        player.draw_pile.push(CardKind::Smithy);
+
+        assert!(CardKind::Smithy.is_action());
+        assert_eq!(
+            discard(&mut arena, ignored_player_id, ignored_card),
+            Outcome::Effect(SECONDARY_EFFECT)
+        );
+    }
+
+    fn setup_select() -> Arena {
+        let mut arena = test_util::setup_arena();
+
+        let player = arena.current_player_mut();
+        player.draw_pile.clear();
+        player.discard_pile.clear();
+        player.discard_pile.push(CardKind::Smithy);
+
+        arena
+    }
+
+    #[test]
+    fn select_choose_to_play_card() {
+        let mut arena = setup_select();
+        let player_id = arena.current_player_id;
+
+        let cards = [CardKind::Smithy];
+
+        assert_eq!(
+            select(&mut arena, player_id, &cards),
+            Ok(Outcome::Actions(CardActionQueue::from_card(cards[0])))
+        );
+    }
+
+    #[test]
+    fn select_choose_not_to_play_card() {
+        let mut arena = setup_select();
+        let player_id = arena.current_player_id;
+
+        let cards = [];
+
+        assert_eq!(select(&mut arena, player_id, &cards), Ok(Outcome::None));
+    }
+
+    #[test]
+    fn select_choose_to_play_wrong_card() {
+        let mut arena = setup_select();
+        let player_id = arena.current_player_id;
+
+        let cards = [CardKind::Militia];
+
+        assert_eq!(
+            select(&mut arena, player_id, &cards),
+            Err(Error::UnresolvedActionEffect(
+                SECONDARY_EFFECT.description()
+            ))
+        );
+    }
+
+    #[test]
+    fn select_choose_to_play_wrong_cards() {
+        let mut arena = setup_select();
+        let player_id = arena.current_player_id;
+
+        let cards = [CardKind::Smithy, CardKind::Smithy];
+
+        assert_eq!(
+            select(&mut arena, player_id, &cards),
+            Err(Error::UnresolvedActionEffect(
+                SECONDARY_EFFECT.description()
+            ))
+        );
     }
 }

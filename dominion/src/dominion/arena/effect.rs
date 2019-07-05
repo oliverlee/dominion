@@ -36,11 +36,21 @@ impl std::fmt::Debug for Effect {
 impl PartialEq for Effect {
     fn eq(&self, other: &Self) -> bool {
         use Effect::*;
+        // In the first two match arms, f1 and f2 are function pointer _references_.
+        // e.g. &for<'r, 's> fn(
+        //          &'r mut dominion::arena::Arena,
+        //          usize,
+        //          &'s [dominion::card::CardKind],
+        //      ) -> std::result::Result<
+        //          dominion::arena::effect::Outcome,
+        //          dominion::types::Error,
+        //      >;
+        // To compare equality, we dereference and then cast the result to a regular pointer.
         match (self, other) {
             (Conditional(f1, s1), Conditional(f2, s2)) => {
-                (f1 as *const _ == f2 as *const _) && (s1 == s2)
+                (*f1 as *const () == *f2 as *const ()) && (s1 == s2)
             }
-            (Unconditional(f1), Unconditional(f2)) => f1 as *const _ == f2 as *const _,
+            (Unconditional(f1), Unconditional(f2)) => *f1 as *const () == *f2 as *const (),
             _ => false,
         }
     }
