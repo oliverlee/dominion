@@ -1,10 +1,18 @@
-use crate::dominion::types::{CardSpecifier, Error, Location, Result};
+use crate::dominion::types::{Error, Result};
 use crate::dominion::{Arena, CardKind};
 use std::collections::VecDeque;
 
-enum Effect {
-    Conditional(ConditionalEffectFunction, &'static str),
-    Unconditional(UnconditionalEffectFunction),
+// Each card effect is defined in it's own file.
+mod cellar;
+mod chapel;
+mod harbinger;
+mod militia;
+mod throne_room;
+mod vassal;
+
+pub(self) enum Effect {
+    Conditional(ConditionalFunction, &'static str),
+    Unconditional(UnconditionalFunction),
 }
 
 impl Effect {
@@ -25,38 +33,62 @@ impl std::fmt::Debug for Effect {
     }
 }
 
-type EffectResult = Result<Option<CardActionQueue>>;
-type ConditionalEffectFunction =
-    fn(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> EffectResult;
-type UnconditionalEffectFunction =
-    fn(arena: &mut Arena, player_id: usize, origin_card: CardKind) -> Option<CardActionQueue>;
-
-#[derive(Debug)]
-struct CardAction {
-    card: CardKind,
-    effects: Vec<&'static Effect>,
+impl PartialEq for Effect {
+    fn eq(&self, other: &Self) -> bool {
+        use Effect::*;
+        // In the first two match arms, f1 and f2 are function pointer _references_.
+        // e.g. &for<'r, 's> fn(
+        //          &'r mut dominion::arena::Arena,
+        //          usize,
+        //          &'s [dominion::card::CardKind],
+        //      ) -> std::result::Result<
+        //          dominion::arena::effect::Outcome,
+        //          dominion::types::Error,
+        //      >;
+        // To compare equality, we dereference and then cast the result to a regular pointer.
+        match (self, other) {
+            (Conditional(f1, s1), Conditional(f2, s2)) => {
+                (*f1 as *const () == *f2 as *const ()) && (s1 == s2)
+            }
+            (Unconditional(f1), Unconditional(f2)) => *f1 as *const () == *f2 as *const (),
+            _ => false,
+        }
+    }
 }
 
+#[derive(Debug, PartialEq)]
+pub(self) enum Outcome {
+    Actions(CardActionQueue),
+    Effect(&'static Effect),
+    None,
+}
+
+type ConditionalFunction =
+    fn(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Outcome>;
+type UnconditionalFunction = fn(arena: &mut Arena, player_id: usize, card: CardKind) -> Outcome;
+
+#[derive(Debug, PartialEq)]
+struct CardAction {
+    card: CardKind,
+    effects: VecDeque<&'static Effect>,
+}
 impl CardAction {
     fn new(card: CardKind) -> Self {
-        let mut effects = Vec::new();
+        let mut effects = VecDeque::new();
 
+        effects.push_back(ADD_RESOURCES_FUNC);
         match card {
-            //CardKind::Cellar => unimplemeted!(),
-            //CardKind::Chapel => unimplemeted!(),
-            //CardKind::Harbinger => unimplemeted!(),
-            //CardKind::Vassal => unimplemeted!(),
+            CardKind::Cellar => effects.push_back(cellar::EFFECT),
+            CardKind::Chapel => effects.push_back(chapel::EFFECT),
+            CardKind::Harbinger => effects.push_back(harbinger::EFFECT),
+            CardKind::Vassal => effects.push_back(vassal::EFFECT),
             //CardKind::Workshop => unimplemeted!(),
             //CardKind::Bureaucrat => unimplemeted!(),
-            CardKind::Militia => {
-                effects.push(MILITIA_EFFECT);
-            }
+            CardKind::Militia => effects.push_back(militia::EFFECT),
             //CardKind::Moneylender => unimplemeted!(),
             //CardKind::Poacher => unimplemeted!(),
             //CardKind::Remodel => unimplemeted!(),
-            CardKind::ThroneRoom => {
-                effects.push(THRONE_ROOM_EFFECT);
-            }
+            CardKind::ThroneRoom => effects.push_back(throne_room::EFFECT),
             //CardKind::Bandit => unimplemeted!(),
             //CardKind::CouncilRoom => unimplemeted!(),
             //CardKind::Festival => unimplemeted!(),
@@ -68,7 +100,6 @@ impl CardAction {
             //CardKind::Artisan => unimplemeted!(),
             _ => (),
         }
-        effects.push(ADD_RESOURCES_FUNC);
 
         Self { card, effects }
     }
@@ -78,11 +109,11 @@ impl CardAction {
         arena: &mut Arena,
         player_id: usize,
         selected_cards: Option<&[CardKind]>,
-    ) -> impl Iterator<Item = EffectResult> {
-        let mut results = Vec::new();
+    ) -> (Option<Error>, CardActionQueue) {
+        let mut actions = CardActionQueue::new();
 
         while !self.effects.is_empty() {
-            let result = match self.effects.last().unwrap() {
+            let result = match self.effects.front().unwrap() {
                 Effect::Conditional(f, desc) => match selected_cards {
                     Some(cards) => f(arena, player_id, cards),
                     None => Err(Error::UnresolvedActionEffect(desc)),
@@ -90,16 +121,20 @@ impl CardAction {
                 Effect::Unconditional(f) => Ok(f(arena, player_id, self.card)),
             };
 
-            results.push(result);
-
-            if results.last().unwrap().is_ok() {
-                self.effects.pop();
-            } else {
-                break;
+            match result {
+                Ok(mut outcome) => {
+                    match &mut outcome {
+                        Outcome::Actions(a) => actions.append(a),
+                        Outcome::Effect(e) => self.effects.push_back(e),
+                        Outcome::None => (),
+                    }
+                    self.effects.pop_front();
+                }
+                Err(error) => return (Some(error), actions),
             }
         }
 
-        results.into_iter()
+        (None, actions)
     }
 
     fn condition(&self) -> Option<&'static str> {
@@ -113,25 +148,27 @@ impl CardAction {
     }
 }
 
-#[derive(Debug)]
-pub(crate) struct CardActionQueue {
+#[derive(Debug, PartialEq)]
+pub(super) struct CardActionQueue {
     actions: VecDeque<CardAction>,
 }
 
 impl CardActionQueue {
-    pub(crate) fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             actions: VecDeque::new(),
         }
     }
 
     fn from_card(card: CardKind) -> Self {
-        let mut actions = VecDeque::new();
-        actions.push_back(CardAction::new(card));
-        Self { actions }
+        let mut actions = Self::new();
+
+        actions.add_card(card);
+
+        actions
     }
 
-    pub(crate) fn add_card(&mut self, card: CardKind) {
+    pub(super) fn add_card(&mut self, card: CardKind) {
         self.actions.push_back(CardAction::new(card));
     }
 
@@ -139,15 +176,15 @@ impl CardActionQueue {
         self.actions.append(&mut other.actions);
     }
 
-    pub(crate) fn is_resolved(&self) -> bool {
+    pub(super) fn is_resolved(&self) -> bool {
         self.actions.is_empty()
     }
 
-    pub(crate) fn resolve_condition(&self) -> Option<&'static str> {
+    pub(super) fn resolve_condition(&self) -> Option<&'static str> {
         self.actions.iter().find_map(CardAction::condition)
     }
 
-    pub(crate) fn resolve(
+    pub(super) fn resolve(
         &mut self,
         arena: &mut Arena,
         player_id: usize,
@@ -157,21 +194,16 @@ impl CardActionQueue {
         let mut selected_cards = selected_cards;
 
         while !self.actions.is_empty() {
-            let results =
+            let (error, mut spawned) =
                 self.actions
                     .front_mut()
                     .unwrap()
                     .resolve(arena, player_id, selected_cards);
 
-            for r in results {
-                match r {
-                    Ok(mut actions) => {
-                        if let Some(ref mut actions) = actions {
-                            self.append(actions);
-                        }
-                    }
-                    Err(e) => return Err(e),
-                }
+            self.append(&mut spawned);
+
+            if let Some(error) = error {
+                return Err(error);
             }
 
             // Don't use the same selected cards in subsequent spawned action card effects.
@@ -184,7 +216,7 @@ impl CardActionQueue {
     }
 }
 
-fn add_resources_func(arena: &mut Arena, _: usize, card: CardKind) -> Option<CardActionQueue> {
+fn add_resources_func(arena: &mut Arena, _: usize, card: CardKind) -> Outcome {
     if let Some(resources) = card.resources() {
         let action_phase = arena.turn.as_action_phase_mut().unwrap();
 
@@ -199,99 +231,19 @@ fn add_resources_func(arena: &mut Arena, _: usize, card: CardKind) -> Option<Car
     }
 
     // Adding card resources never adds new effects to the queue.
-    None
+    Outcome::None
 }
 
 const ADD_RESOURCES_FUNC: &Effect = &Effect::Unconditional(add_resources_func);
 
-const MILITIA_EFFECT: &Effect = &Effect::Conditional(
-    militia_effect,
-    "Each other player discards down to 3 cards in their hand.",
-);
-
-fn militia_effect(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> EffectResult {
-    let error = Error::UnresolvedActionEffect(&MILITIA_EFFECT.description());
-
-    // TODO: Handle games with more than 2 players.
-    if player_id == arena.current_player_id {
-        return Err(Error::UnresolvedActionEffect(&MILITIA_EFFECT.description()));
-    }
-
-    let hand = &arena.player(player_id).unwrap().hand;
-    let mut hand2 = hand.clone();
-
-    if hand.len() <= 3 {
-        if !cards.is_empty() {
-            return Err(error);
-        }
-    } else if hand.len() == cards.len() + 3 {
-        // TODO: Use something more efficient.
-        if !cards.iter().all(|card| hand2.remove_item(card).is_some()) {
-            return Err(error);
-        }
-    } else {
-        return Err(error);
-    }
-
-    let player = arena.player_mut(player_id).unwrap();
-    std::mem::swap(&mut player.hand, &mut hand2);
-    for &card in cards {
-        player.discard_pile.push(card);
-    }
-
-    Ok(None)
-}
-
-const THRONE_ROOM_EFFECT: &Effect = &Effect::Conditional(
-    throne_room_effect,
-    "You may play an Action card from your hand twice.",
-);
-
-fn throne_room_effect(arena: &mut Arena, _: usize, cards: &[CardKind]) -> EffectResult {
-    let error = Error::UnresolvedActionEffect(&THRONE_ROOM_EFFECT.description());
-    let card_index;
-
-    if cards.is_empty() {
-        card_index = None;
-    } else if cards.len() == 1 {
-        match arena
-            .current_player()
-            .hand
-            .iter()
-            .position(|&hand_card| hand_card == cards[0])
-        {
-            Some(i) => card_index = Some(CardSpecifier::Index(i)),
-            None => return Err(error),
-        };
-    } else {
-        return Err(error);
-    }
-
-    if let Some(card) = card_index {
-        let player_id = arena.current_player_id;
-
-        arena
-            .move_card(
-                Location::Hand { player_id },
-                Location::Play { player_id },
-                card,
-            )
-            .unwrap();
-
-        let mut actions = CardActionQueue::from_card(cards[0]);
-        actions.add_card(cards[0]);
-
-        Ok(Some(actions))
-    } else {
-        Ok(None)
-    }
-}
+#[cfg(test)]
+mod test_util;
 
 #[cfg(test)]
 mod test {
     use super::*;
     use crate::dominion::turn::{self, Turn};
-    use crate::dominion::{Arena, KingdomSet};
+    use crate::dominion::types::Location;
 
     #[test]
     fn empty_stack_is_resolved() {
@@ -299,18 +251,9 @@ mod test {
         assert!(stacks.is_resolved());
     }
 
-    fn setup_arena_actions() -> (Arena, CardActionQueue) {
-        let mut arena = Arena::new(KingdomSet::FirstGame, 2);
-        let mut actions: Option<CardActionQueue> = None;
-
-        std::mem::swap(&mut arena.actions, &mut actions);
-
-        (arena, actions.unwrap())
-    }
-
     #[test]
     fn resolve_market_stack() {
-        let (mut arena, mut actions) = setup_arena_actions();
+        let (mut arena, mut actions) = test_util::setup_arena_actions();
         actions.add_card(CardKind::Market);
 
         let r = actions.resolve(&mut arena, 0, None);
@@ -331,7 +274,7 @@ mod test {
 
     #[test]
     fn resolve_militia_stack() {
-        let (mut arena, mut actions) = setup_arena_actions();
+        let (mut arena, mut actions) = test_util::setup_arena_actions();
         actions.add_card(CardKind::Militia);
 
         let r = actions.resolve(&mut arena, 0, None);
@@ -393,7 +336,7 @@ mod test {
 
     #[test]
     fn resolve_throne_room_stack_no_action() {
-        let (mut arena, mut actions) = setup_arena_actions();
+        let (mut arena, mut actions) = test_util::setup_arena_actions();
         actions.add_card(CardKind::ThroneRoom);
 
         let r = actions.resolve(&mut arena, 0, None);
@@ -425,7 +368,7 @@ mod test {
 
     #[test]
     fn resolve_throne_room_stack_smithy() {
-        let (mut arena, mut actions) = setup_arena_actions();
+        let (mut arena, mut actions) = test_util::setup_arena_actions();
         arena.current_player_mut().hand.push(CardKind::Smithy);
 
         assert_eq!(arena.current_player().hand.len(), 6);
@@ -461,7 +404,7 @@ mod test {
 
     #[test]
     fn resolve_throne_room_stack_militia() {
-        let (mut arena, mut actions) = setup_arena_actions();
+        let (mut arena, mut actions) = test_util::setup_arena_actions();
         arena.current_player_mut().hand.push(CardKind::Militia);
 
         assert_eq!(arena.current_player().hand.len(), 6);
