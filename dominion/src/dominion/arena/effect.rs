@@ -6,6 +6,7 @@ use std::collections::VecDeque;
 mod prelude;
 
 // Each card effect is defined in it's own file.
+mod bureaucrat;
 mod cellar;
 mod chapel;
 mod harbinger;
@@ -87,7 +88,10 @@ impl CardAction {
             CardKind::Harbinger => effects.push_back(harbinger::EFFECT),
             CardKind::Vassal => effects.push_back(vassal::EFFECT),
             CardKind::Workshop => effects.push_back(workshop::EFFECT),
-            //CardKind::Bureaucrat => unimplemeted!(),
+            CardKind::Bureaucrat => {
+                effects.push_back(bureaucrat::EFFECT_A);
+                effects.push_back(bureaucrat::EFFECT_B);
+            }
             CardKind::Militia => effects.push_back(militia::EFFECT),
             //CardKind::Moneylender => unimplemeted!(),
             //CardKind::Poacher => unimplemeted!(),
