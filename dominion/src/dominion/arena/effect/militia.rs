@@ -1,6 +1,4 @@
-use crate::dominion::arena::effect::{Effect, Outcome};
-use crate::dominion::types::{Error, Result};
-use crate::dominion::{Arena, CardKind};
+use super::prelude::*;
 
 pub(super) const EFFECT: &Effect = &Effect::Conditional(
     func,

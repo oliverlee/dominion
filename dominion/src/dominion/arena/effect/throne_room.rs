@@ -1,6 +1,4 @@
-use crate::dominion::arena::effect::{CardActionQueue, Effect, Outcome};
-use crate::dominion::types::{CardSpecifier, Error, Location, Result};
-use crate::dominion::{Arena, CardKind};
+use super::prelude::*;
 
 pub(super) const EFFECT: &Effect =
     &Effect::Conditional(func, "You may play an Action card from your hand twice.");

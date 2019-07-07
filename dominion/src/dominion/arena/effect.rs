@@ -2,6 +2,9 @@ use crate::dominion::types::{Error, Result};
 use crate::dominion::{Arena, CardKind};
 use std::collections::VecDeque;
 
+// Define the effect implementation prelude
+mod prelude;
+
 // Each card effect is defined in it's own file.
 mod cellar;
 mod chapel;
@@ -82,7 +85,7 @@ impl CardAction {
             CardKind::Chapel => effects.push_back(chapel::EFFECT),
             CardKind::Harbinger => effects.push_back(harbinger::EFFECT),
             CardKind::Vassal => effects.push_back(vassal::EFFECT),
-            //CardKind::Workshop => unimplemeted!(),
+            //CardKind::Workshop => effects.push_back(workshop::EFFECT),
             //CardKind::Bureaucrat => unimplemeted!(),
             CardKind::Militia => effects.push_back(militia::EFFECT),
             //CardKind::Moneylender => unimplemeted!(),
