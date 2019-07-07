@@ -12,6 +12,7 @@ mod chapel;
 mod harbinger;
 mod militia;
 mod moneylender;
+mod poacher;
 mod throne_room;
 mod vassal;
 mod workshop;
@@ -95,7 +96,7 @@ impl CardAction {
             }
             CardKind::Militia => effects.push_back(militia::EFFECT),
             CardKind::Moneylender => effects.push_back(moneylender::EFFECT),
-            //CardKind::Poacher => unimplemeted!(),
+            CardKind::Poacher => effects.push_back(poacher::EFFECT),
             //CardKind::Remodel => unimplemeted!(),
             CardKind::ThroneRoom => effects.push_back(throne_room::EFFECT),
             //CardKind::Bandit => unimplemeted!(),

@@ -13,7 +13,7 @@ fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Outco
         return error;
     }
 
-    let mut hand = &mut arena.player(player_id).unwrap().hand.clone();
+    let mut hand = arena.player(player_id).unwrap().hand.clone();
 
     if hand.len() <= 3 {
         if !cards.is_empty() {
