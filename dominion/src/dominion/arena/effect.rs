@@ -12,6 +12,7 @@ mod harbinger;
 mod militia;
 mod throne_room;
 mod vassal;
+mod workshop;
 
 pub(self) enum Effect {
     Conditional(ConditionalFunction, &'static str),
@@ -85,7 +86,7 @@ impl CardAction {
             CardKind::Chapel => effects.push_back(chapel::EFFECT),
             CardKind::Harbinger => effects.push_back(harbinger::EFFECT),
             CardKind::Vassal => effects.push_back(vassal::EFFECT),
-            //CardKind::Workshop => effects.push_back(workshop::EFFECT),
+            CardKind::Workshop => effects.push_back(workshop::EFFECT),
             //CardKind::Bureaucrat => unimplemeted!(),
             CardKind::Militia => effects.push_back(militia::EFFECT),
             //CardKind::Moneylender => unimplemeted!(),
