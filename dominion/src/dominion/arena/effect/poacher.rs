@@ -1,22 +1,26 @@
 use super::prelude::*;
 
-// TODO chain unconditional -> conditional? see vassal
-pub(super) const EFFECT: &Effect =
-    &Effect::Conditional(func, "Discard a card per empty Supply pile.");
+pub(super) const EFFECT: &Effect = &Effect::Unconditional(check_discard);
 
-fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Outcome> {
+fn check_discard(arena: &mut Arena, _: usize, _: CardKind) -> Outcome {
+    if empty_count(arena) > 0 {
+        Outcome::Effect(SECONDARY_EFFECT)
+    } else {
+        Outcome::None
+    }
+}
+
+pub(super) const SECONDARY_EFFECT: &Effect =
+    &Effect::Conditional(discard, "Discard a card per empty Supply pile.");
+
+fn discard(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Outcome> {
     let error = Err(Error::UnresolvedActionEffect(&EFFECT.description()));
 
     if player_id != arena.current_player_id {
         return error;
     }
 
-    let empty_count = arena.supply.iter().filter(|(_, &count)| count == 0).count();
-
-    // Player cannot discard more cards than in hand.
-    let empty_count = std::cmp::min(arena.current_player().hand.len(), empty_count);
-
-    if cards.len() == empty_count {
+    if cards.len() == empty_count(arena) {
         let player = arena.current_player_mut();
         player
             .hand
@@ -26,6 +30,13 @@ fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Outco
     } else {
         error
     }
+}
+
+fn empty_count(arena: &Arena) -> usize {
+    let n = arena.supply.iter().filter(|(_, &count)| count == 0).count();
+
+    // Player cannot discard more cards than in hand.
+    std::cmp::min(arena.current_player().hand.len(), n)
 }
 
 #[cfg(test)]
@@ -45,26 +56,50 @@ mod test {
     }
 
     #[test]
+    fn check_discard_no_empty_piles() {
+        let mut arena = test_util::setup_arena();
+        let ignored_player_id = arena.current_player_id;
+        let ignored_card = CardKind::Copper;
+
+        assert_eq!(
+            check_discard(&mut arena, ignored_player_id, ignored_card),
+            Outcome::None
+        );
+    }
+
+    #[test]
+    fn check_discard_1_empty_pile() {
+        let mut arena = test_util::setup_arena();
+        let ignored_player_id = arena.current_player_id;
+        let ignored_card = CardKind::Copper;
+
+        arena.supply.empty(CardKind::Silver);
+
+        assert_eq!(
+            check_discard(&mut arena, ignored_player_id, ignored_card),
+            Outcome::Effect(SECONDARY_EFFECT)
+        );
+    }
+
+    #[test]
     fn discard_nothing_no_empty_piles() {
         let mut arena = test_util::setup_arena();
         let player_id = arena.current_player_id;
-
         let cards = [];
 
-        assert_eq!(func(&mut arena, player_id, &cards), Ok(Outcome::None));
+        assert_eq!(discard(&mut arena, player_id, &cards), Ok(Outcome::None));
     }
 
     #[test]
     fn discard_nothing_1_empty_pile() {
         let mut arena = test_util::setup_arena();
         let player_id = arena.current_player_id;
-
         let cards = [];
 
         arena.supply.empty(CardKind::Province);
 
         assert_eq!(
-            func(&mut arena, player_id, &cards),
+            discard(&mut arena, player_id, &cards),
             Err(Error::UnresolvedActionEffect(EFFECT.description()))
         );
     }
@@ -79,7 +114,7 @@ mod test {
         arena.current_player_mut().hand.push(cards[0]);
 
         assert_eq!(
-            func(&mut arena, player_id, &cards),
+            discard(&mut arena, player_id, &cards),
             Err(Error::UnresolvedActionEffect(EFFECT.description()))
         );
     }
@@ -95,7 +130,7 @@ mod test {
         arena.current_player_mut().hand.clear();
 
         assert_eq!(
-            func(&mut arena, player_id, &cards),
+            discard(&mut arena, player_id, &cards),
             Err(Error::UnresolvedActionEffect(EFFECT.description()))
         );
     }
@@ -111,7 +146,7 @@ mod test {
         arena.current_player_mut().hand.clear();
         arena.current_player_mut().hand.push(cards[0]);
 
-        assert_eq!(func(&mut arena, player_id, &cards), Ok(Outcome::None));
+        assert_eq!(discard(&mut arena, player_id, &cards), Ok(Outcome::None));
         assert_eq!(arena.current_player().hand, cardvec![]);
         assert_eq!(
             arena.current_player().discard_pile,
@@ -129,6 +164,6 @@ mod test {
         arena.supply.empty(CardKind::Duchy);
         arena.current_player_mut().hand.clear();
 
-        assert_eq!(func(&mut arena, player_id, &cards), Ok(Outcome::None));
+        assert_eq!(discard(&mut arena, player_id, &cards), Ok(Outcome::None));
     }
 }
