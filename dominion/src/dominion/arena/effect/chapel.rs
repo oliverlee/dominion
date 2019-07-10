@@ -10,28 +10,15 @@ fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Outco
         return error;
     }
 
-    let mut hand = &mut arena.current_player().hand.clone();
-
-    if cards.len() <= hand.len() {
-        if cards.len() > 4 {
-            return error;
-        }
-
-        for card in cards {
-            if hand.remove_item(card).is_none() {
-                return error;
-            }
-        }
+    if cards.len() <= 4 {
+        current_player!(arena)
+            .hand
+            .move_all_cards(&mut arena.trash, cards)
+            .and(Ok(Outcome::None))
+            .or(error)
     } else {
-        return error;
+        error
     }
-
-    std::mem::swap(&mut arena.current_player_mut().hand, &mut hand);
-    for &card in cards {
-        arena.trash.push(card);
-    }
-
-    Ok(Outcome::None)
 }
 
 #[cfg(test)]

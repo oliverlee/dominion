@@ -1,3 +1,8 @@
+#[macro_use]
+
+// cardvec! macro defined in location is used in arena::tests so location must
+// be declared first.
+pub mod location;
 pub mod arena;
 pub mod card {
     include!(concat!(env!("OUT_DIR"), "/card.rs"));

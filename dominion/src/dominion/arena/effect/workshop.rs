@@ -9,35 +9,25 @@ fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Outco
         return error;
     }
 
-    if cards.len() > 1 {
-        error
-    } else if cards.len() == 1 {
-        if cards[0].cost() > 4 {
-            error
-        } else {
-            arena
-                .move_card(
-                    Location::Supply,
-                    Location::Discard { player_id },
-                    CardSpecifier::Card(cards[0]),
-                )
-                .and(Ok(Outcome::None))
-                .or(error)
-        }
-    } else {
-        // No card selected
+    if cards.is_empty() {
         if arena
-            .view(Location::Supply)
-            .unwrap()
-            .unwrap_unordered()
-            .any(|(&card, &count)| (card.cost() <= 4) && (count > 0))
+            .supply
+            .iter()
+            .any(|(card, &count)| (card.cost() <= 4) && (count > 0))
         {
-            // Card candidates are available but player didn'tselect one.
+            // Player could have selected a card but didn't.
             error
         } else {
-            // Card candidates are not available
             Ok(Outcome::None)
         }
+    } else if (cards.len() == 1) && (cards[0].cost() <= 4) {
+        arena
+            .supply
+            .move_card(&mut current_player!(arena).discard_pile, cards[0])
+            .and(Ok(Outcome::None))
+            .or(error)
+    } else {
+        error
     }
 }
 
@@ -57,7 +47,10 @@ mod test {
 
         assert!(cards[0].cost() <= 4);
         assert_eq!(func(&mut arena, player_id, &cards), Ok(Outcome::None));
-        assert_eq!(arena.current_player().discard_pile, vec![CardKind::Silver]);
+        assert_eq!(
+            arena.current_player().discard_pile,
+            cardvec![CardKind::Silver]
+        );
     }
 
     #[test]
@@ -72,7 +65,7 @@ mod test {
             func(&mut arena, player_id, &cards),
             Err(Error::UnresolvedActionEffect(EFFECT.description()))
         );
-        assert_eq!(arena.current_player().discard_pile, vec![]);
+        assert_eq!(arena.current_player().discard_pile, cardvec![]);
     }
 
     #[test]
@@ -86,7 +79,7 @@ mod test {
             func(&mut arena, player_id, &cards),
             Err(Error::UnresolvedActionEffect(EFFECT.description()))
         );
-        assert_eq!(arena.current_player().discard_pile, vec![]);
+        assert_eq!(arena.current_player().discard_pile, cardvec![]);
     }
 
     #[test]
@@ -96,24 +89,14 @@ mod test {
 
         let cards = [];
 
-        {
-            let candidates: Vec<_> = arena
-                .view(Location::Supply)
-                .unwrap()
-                .unwrap_unordered()
-                .map(|(card, _)| *card)
-                .collect();
-
-            // Set count to zero for all valid choices in the supply
-            for card in candidates {
-                if card.cost() <= 4 {
-                    *arena.supply.get_mut(card).unwrap() = 0;
-                }
+        arena.supply.iter_mut().for_each(|(card, count)| {
+            if card.cost() <= 4 {
+                *count = 0;
             }
-        }
+        });
 
         assert_eq!(func(&mut arena, player_id, &cards), Ok(Outcome::None));
-        assert_eq!(arena.current_player().discard_pile, vec![]);
+        assert_eq!(arena.current_player().discard_pile, cardvec![]);
     }
 
     #[test]
@@ -127,6 +110,6 @@ mod test {
             func(&mut arena, player_id, &cards),
             Err(Error::UnresolvedActionEffect(EFFECT.description()))
         );
-        assert_eq!(arena.current_player().discard_pile, vec![]);
+        assert_eq!(arena.current_player().discard_pile, cardvec![]);
     }
 }

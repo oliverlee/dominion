@@ -253,7 +253,6 @@ mod test_util;
 mod test {
     use super::*;
     use crate::dominion::turn::{self, Turn};
-    use crate::dominion::types::Location;
 
     #[test]
     fn empty_stack_is_resolved() {
@@ -299,9 +298,8 @@ mod test {
         assert!(!actions.is_resolved());
 
         let discard_cards: Vec<_> = arena
-            .view(Location::Hand { player_id: 0 })
-            .unwrap()
-            .unwrap_ordered()
+            .current_player()
+            .hand
             .iter()
             .take(2)
             .cloned()
@@ -318,9 +316,9 @@ mod test {
         assert!(!actions.is_resolved());
 
         let discard_cards: Vec<_> = arena
-            .view(Location::Hand { player_id: 1 })
+            .player(1)
             .unwrap()
-            .unwrap_ordered()
+            .hand
             .iter()
             .take(2)
             .cloned()

@@ -1,4 +1,4 @@
-use crate::dominion::types::{CardSpecifier, CardVec};
+use crate::dominion::location::CardVec;
 use crate::dominion::CardKind;
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
@@ -28,32 +28,30 @@ impl Player {
         let mut draw_pile = vec![CardKind::Copper; 7];
         draw_pile.append(&mut vec![CardKind::Estate; 3]);
 
-        let mut p = Self {
-            draw_pile,
+        let mut player = Self {
+            draw_pile: CardVec(draw_pile),
             hand: CardVec::new(),
             play_zone: CardVec::new(),
             stage: CardVec::new(),
             discard_pile: CardVec::new(),
         };
 
-        p.shuffle_deck();
+        player.shuffle_deck();
 
-        p
+        player
     }
 
-    pub(super) fn draw_card(&mut self) -> Option<CardSpecifier> {
+    pub(super) fn draw_card(&mut self) -> Option<CardKind> {
         if self.draw_pile.is_empty() {
             std::mem::swap(&mut self.draw_pile, &mut self.discard_pile);
             self.shuffle_deck();
         }
 
         // We consider the top of the draw pile to be the end that is popped.
-        if let Some(x) = self.draw_pile.pop() {
-            self.hand.push(x);
-            Some(CardSpecifier::Index(self.hand.len() - 1))
-        } else {
-            None
-        }
+        self.draw_pile.pop().map(|card| {
+            self.hand.push(card);
+            card
+        })
     }
 
     pub(super) fn cleanup(&mut self) {
@@ -98,8 +96,8 @@ mod tests {
 
         p.draw_card();
 
-        assert_eq!(p.draw_pile, vec![CardKind::Silver]);
-        assert_eq!(p.hand, vec![CardKind::Copper]);
+        assert_eq!(p.draw_pile, cardvec![CardKind::Silver]);
+        assert_eq!(p.hand, cardvec![CardKind::Copper]);
     }
 
     #[test]
@@ -114,9 +112,8 @@ mod tests {
         }
 
         p.draw_card();
-
-        assert_eq!(p.draw_pile, vec![CardKind::Copper; 4]);
-        assert_eq!(p.hand, vec![CardKind::Copper]);
+        assert_eq!(p.draw_pile, cardvec![CardKind::Copper; 4]);
+        assert_eq!(p.hand, cardvec![CardKind::Copper]);
     }
 
     #[test]
@@ -130,9 +127,9 @@ mod tests {
         p.hand.push(CardKind::Copper);
 
         p.draw_card();
-        assert_eq!(p.draw_pile, vec![]);
-        assert_eq!(p.discard_pile, vec![]);
-        assert_eq!(p.hand, vec![CardKind::Copper; 2]);
+        assert_eq!(p.draw_pile, cardvec![]);
+        assert_eq!(p.discard_pile, cardvec![]);
+        assert_eq!(p.hand, cardvec![CardKind::Copper; 2]);
     }
 
     #[test]
@@ -153,7 +150,7 @@ mod tests {
         assert!(p.discard_pile.iter().any(|&x| x == CardKind::Silver));
         assert!(p.discard_pile.iter().any(|&x| x == CardKind::Gold));
         assert_eq!(p.discard_pile.len(), 2);
-        assert_eq!(p.hand, vec![CardKind::Copper; 5]);
+        assert_eq!(p.hand, cardvec![CardKind::Copper; 5]);
         assert!(p.draw_pile.is_empty());
     }
 
