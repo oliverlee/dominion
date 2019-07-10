@@ -2,13 +2,20 @@ use crate::dominion::types::{Error, Result};
 use crate::dominion::{Arena, CardKind};
 use std::collections::VecDeque;
 
+// Define the effect implementation prelude
+mod prelude;
+
 // Each card effect is defined in it's own file.
+mod bureaucrat;
 mod cellar;
 mod chapel;
 mod harbinger;
 mod militia;
+mod moneylender;
+mod poacher;
 mod throne_room;
 mod vassal;
+mod workshop;
 
 pub(self) enum Effect {
     Conditional(ConditionalFunction, &'static str),
@@ -82,11 +89,14 @@ impl CardAction {
             CardKind::Chapel => effects.push_back(chapel::EFFECT),
             CardKind::Harbinger => effects.push_back(harbinger::EFFECT),
             CardKind::Vassal => effects.push_back(vassal::EFFECT),
-            //CardKind::Workshop => unimplemeted!(),
-            //CardKind::Bureaucrat => unimplemeted!(),
+            CardKind::Workshop => effects.push_back(workshop::EFFECT),
+            CardKind::Bureaucrat => {
+                effects.push_back(bureaucrat::EFFECT_A);
+                effects.push_back(bureaucrat::EFFECT_B);
+            }
             CardKind::Militia => effects.push_back(militia::EFFECT),
-            //CardKind::Moneylender => unimplemeted!(),
-            //CardKind::Poacher => unimplemeted!(),
+            CardKind::Moneylender => effects.push_back(moneylender::EFFECT),
+            CardKind::Poacher => effects.push_back(poacher::EFFECT),
             //CardKind::Remodel => unimplemeted!(),
             CardKind::ThroneRoom => effects.push_back(throne_room::EFFECT),
             //CardKind::Bandit => unimplemeted!(),

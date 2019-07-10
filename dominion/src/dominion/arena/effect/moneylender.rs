@@ -1,7 +1,9 @@
 use super::prelude::*;
 
-pub(super) const EFFECT: &Effect =
-    &Effect::Conditional(func, "You may play an Action card from your hand twice.");
+pub(super) const EFFECT: &Effect = &Effect::Conditional(
+    func,
+    "You may trash a Copper from your hand. If you do, +$3.",
+);
 
 fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Outcome> {
     let error = Err(Error::UnresolvedActionEffect(&EFFECT.description()));
@@ -12,15 +14,13 @@ fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Outco
 
     if cards.is_empty() {
         Ok(Outcome::None)
-    } else if cards.len() == 1 {
-        let player = arena.current_player_mut();
-        player
+    } else if (cards.len() == 1) && (cards[0] == CardKind::Copper) {
+        current_player!(arena)
             .hand
-            .move_card(&mut player.play_zone, cards[0])
-            .map(|card| {
-                let mut actions = CardActionQueue::from_card(card);
-                actions.add_card(card);
-                Outcome::Actions(actions)
+            .move_card(&mut arena.trash, cards[0])
+            .and_then(|_| {
+                arena.turn.as_action_phase_mut().unwrap().remaining_copper += 3;
+                Ok(Outcome::None)
             })
             .or(error)
     } else {
@@ -36,79 +36,74 @@ mod test {
     use crate::dominion::CardKind;
 
     #[test]
-    fn no_card_selected() {
+    fn trash_nothing() {
         let mut arena = test_util::setup_arena();
         let player_id = arena.current_player_id;
 
         let cards = [];
 
         assert_eq!(func(&mut arena, player_id, &cards), Ok(Outcome::None));
+        assert_eq!(arena.trash, vec![]);
     }
 
     #[test]
-    fn card_not_in_hand() {
+    fn trash_non_copper() {
         let mut arena = test_util::setup_arena();
         let player_id = arena.current_player_id;
 
-        let cards = [CardKind::Militia];
+        let cards = [CardKind::Silver];
 
-        assert_eq!(
-            func(&mut arena, player_id, &cards),
-            Err(Error::UnresolvedActionEffect(EFFECT.description()))
-        );
-    }
-
-    #[test]
-    fn action_card_not_in_hand() {
-        let mut arena = test_util::setup_arena();
-        let player_id = arena.current_player_id;
-
-        let cards = [CardKind::Militia];
-
-        assert!(cards[0].is_action());
-
-        assert_eq!(
-            func(&mut arena, player_id, &cards),
-            Err(Error::UnresolvedActionEffect(EFFECT.description()))
-        );
-    }
-
-    #[test]
-    fn action_card_in_hand() {
-        let mut arena = test_util::setup_arena();
-        let player_id = arena.current_player_id;
-
-        let cards = [CardKind::Militia];
         arena.current_player_mut().hand.push(cards[0]);
 
-        assert!(cards[0].is_action());
-
         assert_eq!(
             func(&mut arena, player_id, &cards),
-            Ok(Outcome::Actions({
-                let mut actions = CardActionQueue::new();
-
-                actions.add_card(cards[0]);
-                actions.add_card(cards[0]);
-
-                actions
-            }))
+            Err(Error::UnresolvedActionEffect(EFFECT.description()))
         );
+        assert_eq!(arena.trash, vec![]);
     }
 
     #[test]
-    fn non_action_card_in_hand() {
+    fn trash_copper_but_empty_hand() {
         let mut arena = test_util::setup_arena();
         let player_id = arena.current_player_id;
 
         let cards = [CardKind::Copper];
-        arena.current_player_mut().hand.push(cards[0]);
 
-        assert!(!cards[0].is_action());
+        arena.current_player_mut().hand.clear();
 
         assert_eq!(
             func(&mut arena, player_id, &cards),
             Err(Error::UnresolvedActionEffect(EFFECT.description()))
         );
+        assert_eq!(arena.trash, vec![]);
+    }
+
+    #[test]
+    fn trash_copper() {
+        let mut arena = test_util::setup_arena();
+        let player_id = arena.current_player_id;
+
+        let cards = [CardKind::Copper];
+
+        arena.current_player_mut().hand.clear();
+        arena.current_player_mut().hand.push(cards[0]);
+
+        assert_eq!(func(&mut arena, player_id, &cards), Ok(Outcome::None));
+        assert_eq!(arena.current_player().hand, vec![]);
+        assert_eq!(arena.trash, vec![CardKind::Copper]);
+    }
+
+    #[test]
+    fn trash_multiple_cards() {
+        let mut arena = test_util::setup_arena();
+        let player_id = arena.current_player_id;
+
+        let cards = [CardKind::Copper, CardKind::Copper];
+
+        assert_eq!(
+            func(&mut arena, player_id, &cards),
+            Err(Error::UnresolvedActionEffect(EFFECT.description()))
+        );
+        assert_eq!(arena.trash, vec![]);
     }
 }

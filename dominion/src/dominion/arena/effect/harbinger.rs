@@ -1,6 +1,4 @@
-use crate::dominion::arena::effect::{Effect, Outcome};
-use crate::dominion::types::{CardSpecifier, Error, Location, Result};
-use crate::dominion::{Arena, CardKind};
+use super::prelude::*;
 
 pub(super) const EFFECT: &Effect = &Effect::Conditional(
     func,
@@ -14,35 +12,18 @@ fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Outco
         return error;
     }
 
-    let card_index;
-
     if cards.is_empty() {
-        card_index = None;
+        Ok(Outcome::None)
     } else if cards.len() == 1 {
-        match arena
-            .current_player()
+        let player = arena.current_player_mut();
+        player
             .discard_pile
-            .iter()
-            .position(|&card| card == cards[0])
-        {
-            Some(i) => card_index = Some(CardSpecifier::Index(i)),
-            None => return error,
-        }
+            .move_card(&mut player.draw_pile, cards[0])
+            .and(Ok(Outcome::None))
+            .or(error)
     } else {
-        return error;
+        error
     }
-
-    if let Some(card_index) = card_index {
-        arena
-            .move_card(
-                Location::Discard { player_id },
-                Location::Draw { player_id },
-                card_index,
-            )
-            .unwrap();
-    }
-
-    Ok(Outcome::None)
 }
 
 #[cfg(test)]

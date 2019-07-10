@@ -11,6 +11,7 @@ default-run = "dominion"
 rand = "0.6.5"
 serde = { version = "1.0.92", features = ["derive"] }
 serde_json = "1.0.39"
+shrinkwraprs = "0.2.1"
 
 [build-dependencies]
 scraper = { path = "../scraper" }

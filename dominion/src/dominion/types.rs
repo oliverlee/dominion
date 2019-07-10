@@ -4,12 +4,13 @@ use std::collections::HashMap;
 #[derive(Debug, Eq, PartialEq)]
 pub enum Error {
     InvalidPlayerId,
+    InvalidCard,
+    InvalidIndex,
     WrongTurnPhase,
     NoMoreActions,
     NoMoreBuys,
     NoMoreCards,
     NotEnoughCopper,
-    InvalidCardChoice,
     UnresolvedActionEffect(&'static str),
 }
 
@@ -20,7 +21,6 @@ pub type CardPiles = HashMap<CardKind, usize>;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Location {
-    #[allow(dead_code)]
     Draw {
         player_id: usize,
     },
@@ -38,7 +38,6 @@ pub enum Location {
         player_id: usize,
     },
     Supply,
-    #[allow(dead_code)]
     Trash,
 }
 
