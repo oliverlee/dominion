@@ -1,4 +1,4 @@
-use crate::dominion::types::{CardSpecifier, CardVec};
+use crate::dominion::location::CardVec;
 use crate::dominion::CardKind;
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
@@ -28,29 +28,29 @@ impl Player {
         let mut draw_pile = vec![CardKind::Copper; 7];
         draw_pile.append(&mut vec![CardKind::Estate; 3]);
 
-        let mut p = Self {
-            draw_pile,
+        let mut player = Self {
+            draw_pile: CardVec(draw_pile),
             hand: CardVec::new(),
             play_zone: CardVec::new(),
             stage: CardVec::new(),
             discard_pile: CardVec::new(),
         };
 
-        p.shuffle_deck();
+        player.shuffle_deck();
 
-        p
+        player
     }
 
-    pub(super) fn draw_card(&mut self) -> Option<CardSpecifier> {
+    pub(super) fn draw_card(&mut self) -> Option<CardKind> {
         if self.draw_pile.is_empty() {
             std::mem::swap(&mut self.draw_pile, &mut self.discard_pile);
             self.shuffle_deck();
         }
 
         // We consider the top of the draw pile to be the end that is popped.
-        if let Some(x) = self.draw_pile.pop() {
-            self.hand.push(x);
-            Some(CardSpecifier::Index(self.hand.len() - 1))
+        if let Some(card) = self.draw_pile.pop() {
+            self.hand.push(card);
+            Some(card)
         } else {
             None
         }
@@ -114,7 +114,6 @@ mod tests {
         }
 
         p.draw_card();
-
         assert_eq!(p.draw_pile, vec![CardKind::Copper; 4]);
         assert_eq!(p.hand, vec![CardKind::Copper]);
     }
@@ -135,7 +134,6 @@ mod tests {
         assert_eq!(p.hand, vec![CardKind::Copper; 2]);
     }
 
-    #[test]
     fn test_cleanup() {
         let mut p = Player::new();
 

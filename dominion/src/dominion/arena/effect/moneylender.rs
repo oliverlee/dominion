@@ -12,26 +12,19 @@ fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Outco
         return error;
     }
 
-    if cards.len() > 1 {
-        error
-    } else if cards.len() == 1 {
-        if cards[0] == CardKind::Copper {
-            arena
-                .move_card(
-                    Location::Hand { player_id },
-                    Location::Trash,
-                    CardSpecifier::Card(cards[0]),
-                )
-                .and_then(|_| {
-                    arena.turn.as_action_phase_mut().unwrap().remaining_copper += 3;
-                    Ok(Outcome::None)
-                })
-                .or(error)
-        } else {
-            error
-        }
-    } else {
+    if cards.is_empty() {
         Ok(Outcome::None)
+    } else if (cards.len() == 1) && (cards[0] == CardKind::Copper) {
+        current_player!(arena)
+            .hand
+            .move_card(&mut arena.trash, cards[0])
+            .and_then(|_| {
+                arena.turn.as_action_phase_mut().unwrap().remaining_copper += 3;
+                Ok(Outcome::None)
+            })
+            .or(error)
+    } else {
+        error
     }
 }
 

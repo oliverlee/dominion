@@ -8,34 +8,24 @@ pub(super) const EFFECT: &Effect = &Effect::Conditional(
 fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Outcome> {
     let error = Err(Error::UnresolvedActionEffect(&EFFECT.description()));
 
-    // TODO: Handle games with more than 2 players.
     if player_id == arena.current_player_id {
         return error;
     }
 
-    let mut hand = arena.player(player_id).unwrap().hand.clone();
+    let hand = &arena.player(player_id).unwrap().hand;
 
-    if hand.len() <= 3 {
-        if !cards.is_empty() {
-            return error;
-        }
+    if (hand.len() <= 3) && cards.is_empty() {
+        Ok(Outcome::None)
     } else if hand.len() == cards.len() + 3 {
-        for card in cards {
-            if hand.remove_item(card).is_none() {
-                return error;
-            }
-        }
+        let player = arena.player_mut(player_id).unwrap();
+        player
+            .hand
+            .move_all_cards(&mut player.discard_pile, cards)
+            .and(Ok(Outcome::None))
+            .or(error)
     } else {
-        return error;
+        error
     }
-
-    let player = arena.player_mut(player_id).unwrap();
-    std::mem::swap(&mut player.hand, &mut hand);
-    for &card in cards {
-        player.discard_pile.push(card);
-    }
-
-    Ok(Outcome::None)
 }
 
 #[cfg(test)]

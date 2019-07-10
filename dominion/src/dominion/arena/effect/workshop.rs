@@ -9,35 +9,29 @@ fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Outco
         return error;
     }
 
-    if cards.len() > 1 {
-        error
-    } else if cards.len() == 1 {
-        if cards[0].cost() > 4 {
-            error
-        } else {
-            arena
-                .move_card(
-                    Location::Supply,
-                    Location::Discard { player_id },
-                    CardSpecifier::Card(cards[0]),
-                )
-                .and(Ok(Outcome::None))
-                .or(error)
-        }
-    } else {
-        // No card selected
+    if cards.is_empty() {
         if arena
-            .view(Location::Supply)
-            .unwrap()
-            .unwrap_unordered()
-            .any(|(&card, &count)| (card.cost() <= 4) && (count > 0))
+            .supply
+            .iter()
+            .any(|(card, &count)| (card.cost() <= 4) && (count > 0))
         {
-            // Card candidates are available but player didn'tselect one.
+            // Player could have selected a card but didn't.
             error
         } else {
-            // Card candidates are not available
             Ok(Outcome::None)
         }
+    } else if cards.len() == 1 {
+        if cards[0].cost() <= 4 {
+            arena
+                .supply
+                .move_card(&mut current_player!(arena).discard_pile, cards[0])
+                .and(Ok(Outcome::None))
+                .or(error)
+        } else {
+            error
+        }
+    } else {
+        error
     }
 }
 

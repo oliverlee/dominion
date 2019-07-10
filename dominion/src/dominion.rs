@@ -3,6 +3,7 @@ pub mod card {
     include!(concat!(env!("OUT_DIR"), "/card.rs"));
 }
 pub mod kingdom;
+pub mod location;
 pub mod turn;
 pub mod types;
 

@@ -1,5 +1,6 @@
 use super::prelude::*;
 
+// TODO chain unconditional -> conditional? see vassal
 pub(super) const EFFECT: &Effect =
     &Effect::Conditional(func, "Discard a card per empty Supply pile.");
 
@@ -10,37 +11,21 @@ fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Outco
         return error;
     }
 
-    let empty_count = arena
-        .view(Location::Supply)
-        .unwrap()
-        .unwrap_unordered()
-        .filter(|(_, &count)| count == 0)
-        .count();
+    let empty_count = arena.supply.iter().filter(|(_, &count)| count == 0).count();
 
     // Player cannot discard more cards than in hand.
     let empty_count = std::cmp::min(arena.current_player().hand.len(), empty_count);
 
-    // Player must specify the correct number of cards, including zero.
-    if cards.len() != empty_count {
-        return error;
+    if cards.len() == empty_count {
+        let player = arena.current_player_mut();
+        player
+            .hand
+            .move_all_cards(&mut player.discard_pile, cards)
+            .and(Ok(Outcome::None))
+            .or(error)
+    } else {
+        error
     }
-
-    // Remove cards from cloned hand.
-    let mut hand = arena.current_player().hand.clone();
-    for card in cards {
-        if hand.remove_item(card).is_none() {
-            return error;
-        }
-    }
-
-    // Update actual hand and discard pile.
-    let player = arena.current_player_mut();
-    std::mem::swap(&mut player.hand, &mut hand);
-    for &card in cards {
-        player.discard_pile.push(card);
-    }
-
-    Ok(Outcome::None)
 }
 
 #[cfg(test)]

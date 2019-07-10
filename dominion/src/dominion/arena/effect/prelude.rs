@@ -8,5 +8,6 @@
 //! use super::prelude::*;
 //! ```
 pub(super) use crate::dominion::arena::effect::{CardActionQueue, Effect, Outcome};
-pub(super) use crate::dominion::types::{CardSpecifier, Error, Location, Result};
+pub use crate::dominion::location::Location;
+pub(super) use crate::dominion::types::{Error, Result};
 pub(super) use crate::dominion::{Arena, CardKind};

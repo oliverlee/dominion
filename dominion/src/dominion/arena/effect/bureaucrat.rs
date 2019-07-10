@@ -4,14 +4,10 @@ use super::prelude::*;
 pub(super) const EFFECT_A: &Effect = &Effect::Unconditional(gain_silver);
 
 fn gain_silver(arena: &mut Arena, _: usize, _: CardKind) -> Outcome {
-    let player_id = arena.current_player_id;
-
     // This can fail if the supply count for Silver is empty but it doesn't matter.
-    let _ = arena.move_card(
-        Location::Supply,
-        Location::Draw { player_id },
-        CardSpecifier::Card(CardKind::Silver),
-    );
+    let _ = arena
+        .supply
+        .move_card(&mut current_player!(arena).draw_pile, CardKind::Silver);
 
     Outcome::None
 }
@@ -33,12 +29,10 @@ fn reveal_victory_card(arena: &mut Arena, player_id: usize, cards: &[CardKind]) 
     } else if cards.len() == 1 {
         if cards[0].is_victory() {
             // TODO: Reveal card to other players
-            arena
-                .move_card(
-                    Location::Hand { player_id },
-                    Location::Draw { player_id },
-                    CardSpecifier::Card(cards[0]),
-                )
+            let player = arena.player_mut(player_id).unwrap();
+            let _ = player
+                .hand
+                .move_card(&mut player.draw_pile, cards[0])
                 .unwrap();
             Ok(Outcome::None)
         } else {

@@ -41,7 +41,8 @@ fn main() {
 
                 match command {
                     Command::View(location) => {
-                        println!("{:?}", arena.view(location)?);
+                        //println!("{:?}", arena.view(location)?);
+                        println!("location disabled");
                         println!()
                     }
                     Command::EndPhase => {

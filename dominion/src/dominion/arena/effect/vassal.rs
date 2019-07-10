@@ -3,32 +3,27 @@ use super::prelude::*;
 pub(super) const EFFECT: &Effect = &Effect::Unconditional(discard);
 
 fn discard(arena: &mut Arena, _: usize, _: CardKind) -> Outcome {
-    match arena.current_player_mut().draw_card() {
-        Some(card) => {
-            let player_id = arena.current_player_id;
+    let top_index: Option<usize> = match arena.current_player().draw_pile.len() {
+        0 => None,
+        x => Some(x),
+    };
 
-            arena
-                .move_card(
-                    Location::Hand { player_id },
-                    Location::Discard { player_id },
-                    card,
-                )
-                .unwrap();
-
-            if arena
-                .current_player()
-                .discard_pile
-                .last()
-                .unwrap()
-                .is_action()
-            {
-                Outcome::Effect(SECONDARY_EFFECT)
-            } else {
-                Outcome::None
-            }
-        }
-        None => Outcome::None,
-    }
+    top_index
+        .map(|x| {
+            let player = arena.current_player_mut();
+            player
+                .draw_pile
+                .move_index(&mut player.discard_pile, x)
+                .map(|card| {
+                    if card.is_action() {
+                        Outcome::Effect(SECONDARY_EFFECT)
+                    } else {
+                        Outcome::None
+                    }
+                })
+                .unwrap_or(Outcome::None)
+        })
+        .unwrap_or(Outcome::None)
 }
 
 #[allow(clippy::non_ascii_literal)]

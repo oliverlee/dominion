@@ -10,43 +10,21 @@ fn func(arena: &mut Arena, player_id: usize, cards: &[CardKind]) -> Result<Outco
         return error;
     }
 
-    let card_index;
-
     if cards.is_empty() {
-        card_index = None;
-    } else if cards.len() == 1 {
-        if !cards[0].is_action() {
-            return error;
-        }
-
-        match arena
-            .current_player()
-            .hand
-            .iter()
-            .position(|&hand_card| hand_card == cards[0])
-        {
-            Some(i) => card_index = Some(CardSpecifier::Index(i)),
-            None => return error,
-        };
-    } else {
-        return error;
-    }
-
-    if let Some(card_index) = card_index {
-        arena
-            .move_card(
-                Location::Hand { player_id },
-                Location::Play { player_id },
-                card_index,
-            )
-            .unwrap();
-
-        let mut actions = CardActionQueue::from_card(cards[0]);
-        actions.add_card(cards[0]);
-
-        Ok(Outcome::Actions(actions))
-    } else {
         Ok(Outcome::None)
+    } else if cards.len() == 1 {
+        let player = arena.current_player_mut();
+        player
+            .hand
+            .move_card(&mut player.play_zone, cards[0])
+            .map(|card| {
+                let mut actions = CardActionQueue::from_card(card);
+                actions.add_card(card);
+                Outcome::Actions(actions)
+            })
+            .or(error)
+    } else {
+        error
     }
 }
 
