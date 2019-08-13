@@ -40,8 +40,9 @@ fn main() {
                 let player_id = arena.current_player_id();
 
                 match command {
-                    Command::View(location) => {
-                        println!("{:?}", arena.view(location)?);
+                    Command::View(_location) => {
+                        //FIXME println!("{:?}", arena.view(location)?);
+                        println!("location disabled");
                         println!()
                     }
                     Command::EndPhase => {

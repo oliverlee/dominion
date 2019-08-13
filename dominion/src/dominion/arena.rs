@@ -1,6 +1,21 @@
+use crate::dominion::location::{CardVec, Location};
 use crate::dominion::turn::{self, Turn};
-use crate::dominion::types::{CardSpecifier, CardVec, Error, Location, LocationView, Result};
+use crate::dominion::types::{Error, Result};
 use crate::dominion::{CardKind, KingdomSet};
+
+// These declarative macros are used to borrow a single player from the arena struct.
+// This is useful when moving cards between the supply/trash and a player. Using
+// `current_player_mut()` and similar functions will borrow the entire arena
+// struct, preventing a second borrow of the arena.supply.
+// These are defined before the effect module.
+macro_rules! current_player {
+    ($x:ident) => {
+        $x.players[$x.current_player_id]
+    };
+}
+//macro_rules! other_player {
+//    ($x:ident) => { $x.players[$x.next_player_id()] }
+//}
 
 mod effect;
 mod player;
@@ -35,35 +50,8 @@ impl Arena {
         arena
     }
 
-    pub fn view(&self, loc: Location) -> Result<LocationView> {
-        match loc {
-            Location::Draw { player_id } => self
-                .player(player_id)
-                .map(|player| LocationView::Ordered(&player.draw_pile)),
-            Location::Discard { player_id } => self
-                .player(player_id)
-                .map(|player| LocationView::Ordered(&player.discard_pile)),
-            Location::Hand { player_id } => self
-                .player(player_id)
-                .map(|player| LocationView::Ordered(&player.hand)),
-            Location::Play { player_id } => self
-                .player(player_id)
-                .map(|player| LocationView::Ordered(&player.play_zone)),
-            Location::Stage { player_id } => self
-                .player(player_id)
-                .map(|player| LocationView::Ordered(&player.stage)),
-            Location::Supply => Ok(LocationView::Unordered(
-                self.supply
-                    .base_cards
-                    .iter()
-                    .chain(self.supply.kingdom_cards.iter()),
-            )),
-            Location::Trash => Ok(LocationView::Ordered(&self.trash)),
-        }
-    }
-
     pub fn kingdom(&self) -> impl std::iter::Iterator<Item = &'_ CardKind> {
-        self.supply.kingdom_cards.keys()
+        self.supply.kingdom_cards.iter().map(|(card, _)| card)
     }
 
     pub fn is_game_over(&self) -> bool {
@@ -113,50 +101,42 @@ impl Arena {
 
     fn play_action(&mut self, card: CardKind) -> Result<()> {
         self.check_actions_resolved()?;
-        let player_id = self.current_player_id;
 
         if self.turn.as_action_phase_mut()?.remaining_actions == 0 {
             Err(Error::NoMoreActions)
         } else if card.is_action() {
-            self.move_card(
-                Location::Hand { player_id },
-                Location::Play { player_id },
-                CardSpecifier::Card(card),
-            )?;
+            let player = self.current_player_mut();
+            let _ = player.hand.move_card(&mut player.play_zone, card)?;
+
             self.turn.as_action_phase_mut().unwrap().remaining_actions -= 1;
+
             self.actions.as_mut().unwrap().add_card(card);
-            self.try_resolve(player_id, None)
+            self.try_resolve(self.current_player_id, None)
         } else {
-            Err(Error::InvalidCardChoice)
+            Err(Error::InvalidCard)
         }
     }
 
     fn play_treasure(&mut self, card: CardKind) -> Result<()> {
         self.check_actions_resolved()?;
-        let player_id = self.current_player_id;
-
         self.turn.as_buy_phase_mut()?;
 
         if card.is_treasure() {
             let additional_copper = card.resources().unwrap().copper;
 
-            self.move_card(
-                Location::Hand { player_id },
-                Location::Play { player_id },
-                CardSpecifier::Card(card),
-            )?;
+            let player = self.current_player_mut();
+            let _ = player.hand.move_card(&mut player.play_zone, card)?;
 
             self.turn.as_buy_phase_mut().unwrap().remaining_copper += additional_copper;
 
             Ok(())
         } else {
-            Err(Error::InvalidCardChoice)
+            Err(Error::InvalidCard)
         }
     }
 
     pub fn buy_card(&mut self, card: CardKind) -> Result<()> {
         self.check_actions_resolved()?;
-        let player_id = self.current_player_id;
 
         let &mut turn::BuyPhase {
             remaining_buys,
@@ -168,11 +148,9 @@ impl Arena {
         } else if remaining_copper < card.cost() {
             Err(Error::NotEnoughCopper)
         } else {
-            self.move_card(
-                Location::Supply,
-                Location::Discard { player_id },
-                CardSpecifier::Card(card),
-            )?;
+            let _ = self
+                .supply
+                .move_card(&mut current_player!(self).discard_pile, card)?;
 
             let buy_phase = self.turn.as_buy_phase_mut().unwrap();
             buy_phase.remaining_buys -= 1;
@@ -189,55 +167,6 @@ impl Arena {
         } else {
             self.try_resolve(player_id, Some(cards))
         }
-    }
-
-    fn move_card(
-        &mut self,
-        origin: Location,
-        destination: Location,
-        card: CardSpecifier,
-    ) -> Result<()> {
-        let card = match card {
-            CardSpecifier::Top => match origin {
-                Location::Supply => {
-                    panic!("Cannot use CardSpecifier::Top with origin Location::Supply.")
-                }
-                _ => self.location(origin).pop().unwrap(),
-            },
-            CardSpecifier::Index(i) => match origin {
-                Location::Supply => {
-                    panic!("Cannot use CardSpecifier::Index with origin Location::Supply.")
-                }
-                _ => self.location(origin).remove(i),
-            },
-            CardSpecifier::Card(card) => match origin {
-                Location::Supply => {
-                    let card_supply = self
-                        .supply
-                        .get_mut(card)
-                        .ok_or_else(|| Error::InvalidCardChoice)?;
-
-                    if *card_supply == 0 {
-                        Err(Error::NoMoreCards)?;
-                    } else {
-                        *card_supply -= 1;
-                    }
-
-                    card
-                }
-                _ => self
-                    .location(origin)
-                    .remove_item(&card)
-                    .ok_or_else(|| Error::InvalidCardChoice)?,
-            },
-        };
-
-        match destination {
-            Location::Supply => panic!("Cannot move card to destination Location::Supply."),
-            _ => self.location(destination).push(card),
-        };
-
-        Ok(())
     }
 
     fn try_resolve(&mut self, player_id: usize, selected_cards: Option<&[CardKind]>) -> Result<()> {
@@ -257,20 +186,6 @@ impl Arena {
         std::mem::swap(&mut temp, &mut self.actions);
 
         result
-    }
-
-    fn location(&mut self, loc: Location) -> &mut CardVec {
-        match loc {
-            Location::Draw { player_id } => &mut self.player_mut(player_id).unwrap().draw_pile,
-            Location::Discard { player_id } => {
-                &mut self.player_mut(player_id).unwrap().discard_pile
-            }
-            Location::Hand { player_id } => &mut self.player_mut(player_id).unwrap().hand,
-            Location::Play { player_id } => &mut self.player_mut(player_id).unwrap().play_zone,
-            Location::Stage { player_id } => &mut self.player_mut(player_id).unwrap().stage,
-            Location::Supply => panic!("Cannot return Location::Supply as a '&mut CardVec'"),
-            Location::Trash => &mut self.trash,
-        }
     }
 
     fn start_game(&mut self) {
@@ -330,6 +245,17 @@ impl Arena {
 mod tests {
     use super::*;
     use crate::dominion::{Arena, KingdomSet};
+
+    impl Supply {
+        fn count(&self, card: CardKind) -> usize {
+            self.find(card)
+                .map(|i| {
+                    let (_, count) = self.get_entry(i).unwrap();
+                    *count
+                })
+                .unwrap()
+        }
+    }
 
     #[test]
     fn player_valid_index() {
@@ -401,19 +327,16 @@ mod tests {
             remaining_copper: 0,
         });
 
-        let copper_supply = arena.supply.get_mut(CardKind::Copper).unwrap().to_owned();
+        let copper_count = arena.supply.count(CardKind::Copper);
 
         let r = arena.buy_card(CardKind::Copper);
 
         assert!(r.is_ok());
         assert_eq!(
             arena.player(0).unwrap().discard_pile,
-            vec![CardKind::Copper]
+            cardvec![CardKind::Copper]
         );
-        assert_eq!(
-            arena.supply.get_mut(CardKind::Copper).unwrap().to_owned(),
-            copper_supply - 1
-        );
+        assert_eq!(arena.supply.count(CardKind::Copper), copper_count - 1);
         assert_eq!(
             arena.turn,
             Turn::Buy(turn::BuyPhase {
@@ -432,19 +355,16 @@ mod tests {
             remaining_copper: 5,
         });
 
-        let market_supply = arena.supply.get_mut(CardKind::Market).unwrap().to_owned();
+        let market_count = arena.supply.count(CardKind::Market);
 
         let r = arena.buy_card(CardKind::Market);
 
         assert!(r.is_ok());
         assert_eq!(
             arena.player(0).unwrap().discard_pile,
-            vec![CardKind::Market]
+            cardvec![CardKind::Market]
         );
-        assert_eq!(
-            arena.supply.get_mut(CardKind::Market).unwrap().to_owned(),
-            market_supply - 1
-        );
+        assert_eq!(arena.supply.count(CardKind::Market), market_count - 1);
         assert_eq!(
             arena.turn,
             Turn::Buy(turn::BuyPhase {
@@ -498,7 +418,7 @@ mod tests {
         let r = arena.buy_card(CardKind::Witch);
 
         assert!(r.is_err());
-        assert_eq!(r.unwrap_err(), Error::InvalidCardChoice);
+        assert_eq!(r.unwrap_err(), Error::InvalidCard);
         assert!(arena.player(0).unwrap().discard_pile.is_empty());
     }
 
@@ -515,7 +435,7 @@ mod tests {
         let r = arena.play_action(CardKind::Market);
 
         assert!(r.is_err());
-        assert_eq!(r.unwrap_err(), Error::InvalidCardChoice);
+        assert_eq!(r.unwrap_err(), Error::InvalidCard);
     }
 
     #[test]
